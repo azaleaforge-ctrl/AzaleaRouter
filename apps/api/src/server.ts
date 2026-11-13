@@ -13,7 +13,8 @@ async function start(): Promise<void> {
     await database.$connect();
   }
 
-  const server = createServer(createApp({ database }));
+  const app = createApp(database ? { database } : {});
+  const server = createServer(app);
   server.listen(env.API_PORT, env.API_HOST, () => {
     logger.info("api.server.started", {
       host: env.API_HOST,
