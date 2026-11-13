@@ -140,9 +140,6 @@ export class SupabaseAuthClient {
     });
     const data = result as Record<string, unknown>;
     const user = parseUser(data.user ?? data);
-    if (user.identities && user.identities.length === 0) {
-      throw new HttpError(409, "AUTH_REGISTRATION_UNAVAILABLE", "Registration could not be completed for this address.");
-    }
     const session = data.access_token && data.refresh_token ? parseTokens(data) : null;
     return { user, session };
   }
