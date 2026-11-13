@@ -20,7 +20,19 @@ jobs:
   quality:
     name: Install, lint, typecheck, build and test
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      REDIS_URL: redis://127.0.0.1:6379
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,7 +52,7 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       # Temporary artifact to bring the pnpm-generated lockfile back into the
-      # review branch. Remove this step once the generated lockfile is committed.
+      # review branch. Remove after the generated lockfile has been committed.
       - name: Upload generated workspace lockfile
         uses: actions/upload-artifact@v4
         with:
@@ -72,6 +84,18 @@ jobs:
 
       - name: API unit and integration tests
         run: pnpm --filter @azalea-router/api test
+
+      - name: Worker lint
+        run: pnpm --filter @azalea-router/worker lint
+
+      - name: Worker typecheck
+        run: pnpm --filter @azalea-router/worker typecheck
+
+      - name: Worker build
+        run: pnpm --filter @azalea-router/worker build
+
+      - name: Worker unit and Redis integration tests
+        run: pnpm --filter @azalea-router/worker test
 
       - name: Verify committed lockfile is current
         run: git diff --exit-code -- pnpm-lock.yaml
