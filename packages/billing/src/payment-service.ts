@@ -185,6 +185,18 @@ export class PaymentService {
           });
           return { accepted: true, duplicate: false, status: "processed", paymentIntentId: intent.id };
         }
+        if (intent.expiresAt.getTime() <= this.now().getTime()) {
+          await tx.paymentIntent.update({
+            where: { id: intent.id },
+            data: { status: "expired" },
+          });
+          await tx.paymentWebhook.update({
+            where: { id: webhook.id },
+            data: { status: "rejected", processedAt: this.now() },
+          });
+          return { accepted: false, duplicate: false, status: "rejected", paymentIntentId: intent.id };
+        }
+
         if (intent.status !== "pending" && intent.status !== "processing") {
           await tx.paymentWebhook.update({
             where: { id: webhook.id },
