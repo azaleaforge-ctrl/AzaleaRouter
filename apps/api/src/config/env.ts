@@ -18,7 +18,7 @@ const envSchema = z.object({
   SUPABASE_ANON_KEY: z.string().min(1).optional(),
   AUTH_TOKEN_ENCRYPTION_KEY: z.string().optional(),
   AUTH_TOKEN_ENCRYPTION_KEY_VERSION: z.string().min(1).max(32).default("v1"),
-  AUTH_RATE_LIMIT_HASH_KEY: z.string().optional(),
+  AUTH_RATE_LIMIT_HASH_KEY: z.string().min(32).optional(),
   AUTH_COOKIE_SECURE: booleanFromEnv.default("false"),
   AUTH_SESSION_MAX_AGE_SECONDS: z.coerce.number().int().min(300).max(60 * 60 * 24 * 60).default(60 * 60 * 24 * 14),
   AUTH_EMAIL_REDIRECT_URL: z.string().url().optional(),
@@ -60,8 +60,34 @@ if (value.AUTH_PROVIDER === "supabase") {
   if (value.NODE_ENV !== "development" && value.NODE_ENV !== "test" && !value.AUTH_COOKIE_SECURE) {
     throw new Error("AUTH_COOKIE_SECURE=true is required outside development/test.");
   }
-  if (value.NODE_ENV === "production" && !value.WEB_ORIGIN?.startsWith("https://")) {
-    throw new Error("WEB_ORIGIN must use HTTPS in production.");
+  if (value.NODE_ENV !== "development" && value.NODE_ENV !== "test") {
+    if (!value.WEB_ORIGIN?.startsWith("https://")) {
+      throw new Error("WEB_ORIGIN must use HTTPS outside development/test.");
+    }
+    if (!value.SUPABASE_URL?.startsWith("https://")) {
+      throw new Error("SUPABASE_URL must use HTTPS outside development/test.");
+    }
+  }
+  if (value.AUTH_EMAIL_REDIRECT_URL && value.WEB_ORIGIN) {
+    const redirectOrigin = new URL(value.AUTH_EMAIL_REDIRECT_URL).origin;
+    if (redirectOrigin !== new URL(value.WEB_ORIGIN).origin) {
+      throw new Error("AUTH_EMAIL_REDIRECT_URL must use the configured WEB_ORIGIN.");
+    }
+  }
+  const key = value.SUPABASE_ANON_KEY!;
+  if (key.startsWith("sb_secret_")) {
+    throw new Error("SUPABASE_ANON_KEY must not be a service-role/secret key.");
+  }
+  if (key.split(".").length === 3) {
+    try {
+      const payload = JSON.parse(Buffer.from(key.split(".")[1]!, "base64url").toString("utf8")) as { role?: string };
+      if (payload.role === "service_role") {
+        throw new Error("SUPABASE_ANON_KEY must not be a service-role/secret key.");
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("service-role")) throw error;
+      // Non-JWT publishable keys are supported; token signature is validated by Supabase.
+    }
   }
   let encryptionKey: Buffer;
   try {
