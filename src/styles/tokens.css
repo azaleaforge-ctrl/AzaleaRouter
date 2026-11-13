@@ -1,0 +1,91 @@
+/*
+ * AzaleaRouter design tokens — PRD Frontend v0.3 §4.2.
+ * Light mode is the default; `.dark` on <html> overrides.
+ * Restrained purple primary; teal is reserved for status/success.
+ * Raw hex values live ONLY here — components consume Tailwind utilities
+ * generated from these variables (see globals.css @theme mapping).
+ */
+:root {
+  color-scheme: light;
+
+  /* Surfaces */
+  --background: #f7f8fc;
+  --surface: #ffffff;
+  --surface-2: #f0f2f8;
+
+  /* Text */
+  --ink: #202436;
+  --muted: #667085;
+
+  /* Lines */
+  --line: #e5e8f0;
+  --line-strong: #d3d8e6;
+
+  /* Brand */
+  --primary: #6558d3;
+  --primary-hover: #564ac2;
+  --primary-soft: #eeecfb;
+  --on-primary: #ffffff;
+
+  /* Status — teal doubles as success; darker step keeps AA contrast as text */
+  --teal: #2e7d6b;
+  --teal-bright: #55a89b;
+  --teal-soft: #e2f1ed;
+
+  --danger: #bb3a2e;
+  --danger-soft: #fbeae8;
+  --warning: #92610c;
+  --warning-soft: #faf1dc;
+
+  --ring: rgba(101, 88, 211, 0.55);
+  --overlay: rgba(32, 36, 54, 0.44);
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgba(32, 36, 54, 0.06);
+  --shadow-md: 0 2px 6px rgba(32, 36, 54, 0.06), 0 10px 28px rgba(32, 36, 54, 0.08);
+  --shadow-lg: 0 4px 12px rgba(32, 36, 54, 0.08), 0 24px 56px rgba(32, 36, 54, 0.12);
+
+  /* Brand atmosphere (hero / auth panel only — restrained by design) */
+  --glow-purple: rgba(101, 88, 211, 0.14);
+  --glow-teal: rgba(85, 168, 155, 0.13);
+  --glow-blue: rgba(79, 131, 229, 0.1);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --background: #111420;
+  --surface: #191e2d;
+  --surface-2: #252b3a;
+
+  --ink: #eceff6;
+  --muted: #aab1c1;
+
+  --line: #2a3040;
+  --line-strong: #3c4356;
+
+  --primary: #a7a0ff;
+  --primary-hover: #beb8ff;
+  --primary-soft: #2a2752;
+  --on-primary: #17142e;
+
+  --teal: #71cfc0;
+  --teal-bright: #71cfc0;
+  --teal-soft: #1c3a36;
+
+  --danger: #ff9b93;
+  --danger-soft: #3d2320;
+  --warning: #e8b45a;
+  --warning-soft: #3a2f1a;
+
+  --ring: rgba(167, 160, 255, 0.6);
+  --overlay: rgba(7, 9, 15, 0.62);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.4), 0 10px 28px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.4), 0 24px 56px rgba(0, 0, 0, 0.55);
+
+  --glow-purple: rgba(167, 160, 255, 0.12);
+  --glow-teal: rgba(113, 207, 192, 0.1);
+  --glow-blue: rgba(79, 131, 229, 0.1);
+}

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- AzaleaRouter favicon: five-petal azalea blossom (matches components/layout/logo.tsx).
+       Static PRD colors (favicon cannot resolve CSS variables): primary #6558D3, teal accent #55A89B. -->
+  <g fill="#6558D3">
+    <ellipse cx="16" cy="9.3" rx="3.8" ry="6"/>
+    <ellipse cx="16" cy="9.3" rx="3.8" ry="6" transform="rotate(72 16 16)"/>
+    <ellipse cx="16" cy="9.3" rx="3.8" ry="6" transform="rotate(144 16 16)"/>
+    <ellipse cx="16" cy="9.3" rx="3.8" ry="6" transform="rotate(216 16 16)"/>
+    <ellipse cx="16" cy="9.3" rx="3.8" ry="6" transform="rotate(288 16 16)"/>
+  </g>
+  <circle cx="16" cy="16" r="1.7" fill="#55A89B"/>
+</svg>

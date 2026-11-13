@@ -1,0 +1,210 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+/* Class-based dark mode (light is the default per PRD §4.4). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Map CSS variables to Tailwind theme values.
+ * Utilities generated: bg-surface, text-ink, text-muted, border-line,
+ * bg-primary, text-on-primary, bg-primary-soft, text-teal, bg-teal-soft,
+ * text-danger, bg-danger-soft, text-warning, bg-warning-soft, ring-ring,
+ * rounded-control, rounded-card, shadow-soft, shadow-pop, shadow-float,
+ * animate-fade-up, animate-fade-in.
+ */
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-on-primary: var(--on-primary);
+  --color-teal: var(--teal);
+  --color-teal-bright: var(--teal-bright);
+  --color-teal-soft: var(--teal-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-ring: var(--ring);
+  --color-overlay: var(--overlay);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Cascadia Code", Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  --radius-control: 12px;
+  --radius-card: 16px;
+
+  --shadow-soft: var(--shadow-sm);
+  --shadow-pop: var(--shadow-md);
+  --shadow-float: var(--shadow-lg);
+
+  --animate-fade-up: fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade-in: fade-in 0.5s ease both;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background font-sans text-ink antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: var(--primary);
+    color: var(--on-primary);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+
+  /* Safety-net focus style; interactive components refine this with rings. */
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* Page gutter used by every public page. */
+  .container-page {
+    @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
+  }
+
+  /* Staggered entrance for hero/section children. */
+  .stagger > * {
+    animation: fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .stagger > *:nth-child(1) { animation-delay: 0.04s; }
+  .stagger > *:nth-child(2) { animation-delay: 0.12s; }
+  .stagger > *:nth-child(3) { animation-delay: 0.2s; }
+  .stagger > *:nth-child(4) { animation-delay: 0.28s; }
+  .stagger > *:nth-child(5) { animation-delay: 0.36s; }
+  .stagger > *:nth-child(6) { animation-delay: 0.44s; }
+  .stagger > *:nth-child(7) { animation-delay: 0.52s; }
+  .stagger > *:nth-child(8) { animation-delay: 0.6s; }
+
+  /* Skeleton shimmer (used by <Skeleton/>). */
+  .skeleton-shimmer {
+    border-radius: 8px;
+    background: linear-gradient(
+      90deg,
+      var(--surface-2) 25%,
+      var(--line) 40%,
+      var(--surface-2) 60%
+    );
+    background-size: 400% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+
+  /* Restrained brand atmosphere for hero + auth panel. */
+  .brand-glow {
+    background:
+      radial-gradient(640px 320px at 12% 8%, var(--glow-purple), transparent 70%),
+      radial-gradient(720px 360px at 88% 92%, var(--glow-teal), transparent 70%),
+      radial-gradient(520px 300px at 78% 12%, var(--glow-blue), transparent 72%);
+  }
+
+  .bg-grid-faint {
+    background-image:
+      linear-gradient(to right, var(--line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--line) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 35%, transparent 78%);
+  }
+
+  /* Article typography for docs / help / blog / legal bodies. */
+  .prose-demo {
+    @apply text-[15px] leading-7 text-ink;
+  }
+  .prose-demo > * + * {
+    margin-top: 1rem;
+  }
+  .prose-demo h2 {
+    @apply mt-10 text-xl font-semibold tracking-tight;
+  }
+  .prose-demo h3 {
+    @apply mt-8 text-base font-semibold tracking-tight;
+  }
+  .prose-demo ul {
+    @apply list-disc space-y-2 pl-5;
+  }
+  .prose-demo ol {
+    @apply list-decimal space-y-2 pl-5;
+  }
+  .prose-demo a {
+    @apply font-medium text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary;
+  }
+  .prose-demo code {
+    @apply rounded-md bg-surface-2 px-1.5 py-0.5 font-mono text-[13px];
+  }
+  .prose-demo pre {
+    @apply overflow-x-auto rounded-card border border-line bg-surface-2 p-4 font-mono text-[13px] leading-6;
+  }
+  .prose-demo pre code {
+    @apply bg-transparent p-0;
+  }
+  .prose-demo table {
+    @apply w-full border-collapse text-sm;
+  }
+  .prose-demo th,
+  .prose-demo td {
+    @apply border border-line px-3 py-2 text-left;
+  }
+  .prose-demo blockquote {
+    @apply border-l-2 border-primary/50 pl-4 text-muted;
+  }
+}
