@@ -129,13 +129,10 @@ export class SupabaseAuthClient {
   }
 
   async signUp(email: string, password: string, redirectTo?: string): Promise<SupabaseSignupResult> {
-    const result = await this.request<unknown>("/signup", {
+    const path = redirectTo ? `/signup?redirect_to=${encodeURIComponent(redirectTo)}` : "/signup";
+    const result = await this.request<unknown>(path, {
       method: "POST",
-      body: JSON.stringify({
-        email,
-        password,
-        ...(redirectTo ? { gotrue_meta_security: undefined, data: { redirect_to: redirectTo } } : {}),
-      }),
+      body: JSON.stringify({ email, password }),
     });
     const data = result as Record<string, unknown>;
     const user = parseUser(data.user ?? data);
