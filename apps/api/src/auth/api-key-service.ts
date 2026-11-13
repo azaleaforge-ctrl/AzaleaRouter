@@ -79,8 +79,17 @@ export class ApiKeyService {
 
   async create(userId: string, rawInput: unknown): Promise<IssuedApiKey> {
     const input = createApiKeySchema.parse(rawInput);
+    const now = new Date();
+    const expiresAt = input.expires_at ? new Date(input.expires_at) : null;
+    if (expiresAt && expiresAt.getTime() <= now.getTime()) {
+      throw new RangeError("API key expiry must be in the future.");
+    }
     const secret = this.createSecret();
-    const key = await this.database.apiKey.create({
+    const key = await this.database.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "users" WHERE "id" = ${userId}::uuid FOR UPDATE`;
+      const activeCount = await tx.apiKey.count({ where: { userId, status: "active" } });
+      if (activeCount >= 20) throw new Error("API_KEY_LIMIT_REACHED");
+      return tx.apiKey.create({
       data: {
         userId,
         name: input.name,
@@ -93,9 +102,10 @@ export class ApiKeyService {
         rateLimitRpm: input.rate_limit_rpm,
         concurrencyLimit: input.concurrency_limit,
         status: "active",
-        expiresAt: input.expires_at ? new Date(input.expires_at) : null,
+        expiresAt,
       },
     });
+    }, { isolationLevel: "Serializable", timeout: 15_000 });
     return this.loadIssuedKey(userId, key.id, secret.token);
   }
 
