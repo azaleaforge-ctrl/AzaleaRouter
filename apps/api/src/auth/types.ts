@@ -21,6 +21,8 @@ export const authenticatedPrincipalSchema = z.object({
   email: z.string().email().max(320),
   role: z.enum(userRoles),
   status: z.enum(accountStatuses),
+  sessionId: z.string().uuid().optional(),
+  csrfTokenHash: z.string().regex(/^[0-9a-f]{64}$/).optional(),
 }).strict();
 
 export type AuthenticatedPrincipal = z.infer<typeof authenticatedPrincipalSchema>;
@@ -30,6 +32,8 @@ declare global {
   namespace Express {
     interface Request {
       auth?: AuthenticatedPrincipal;
+      authSessionId?: string;
+      authSessionCsrfTokenHash?: string;
     }
   }
 }
