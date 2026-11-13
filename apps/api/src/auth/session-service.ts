@@ -151,7 +151,11 @@ export class AuthSessionService implements SessionVerifier {
         }
         await this.database.authSession.update({
           where: { id: record.id },
-          data: { revokedAt: new Date(this.now()) },
+          data: {
+            revokedAt: new Date(this.now()),
+            encryptedAccessToken: "",
+            encryptedRefreshToken: "",
+          },
         });
       }
     }
