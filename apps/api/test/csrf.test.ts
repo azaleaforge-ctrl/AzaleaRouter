@@ -1,33 +1,57 @@
 import assert from "node:assert/strict";
-import { createServer, type Server } from "node:http";
 import test from "node:test";
-import { Router } from "express";
-import { createApp } from "../src/app.js";
+import type { Request, Response, NextFunction } from "express";
+import { sha256 } from "../src/auth/token-crypto.js";
 import { requireCsrf } from "../src/middleware/csrf.js";
 
-async function startServer(): Promise<{ server: Server; baseUrl: string }> {
-  const router = Router();
-  router.post("/csrf-check", requireCsrf({ cookieName: "azlr_csrf", allowedOrigins: ["http://localhost:3000"] }), (_req, res) => {
-    res.status(204).end();
+function runGuard(input: {
+  cookie?: string;
+  header?: string;
+  origin?: string;
+  csrfHash?: string;
+}): Promise<unknown> {
+  return new Promise((resolve) => {
+    const req = {
+      auth: {
+        userId: "user-1",
+        email: "user@example.test",
+        role: "user",
+        status: "active",
+        sessionId: "9b944d73-23f4-4cb8-98df-2ea7d11d5674",
+        csrfTokenHash: input.csrfHash ?? sha256("csrf-test-token"),
+      },
+      header(name: string) {
+        if (name === "cookie") return input.cookie;
+        if (name === "x-csrf-token") return input.header;
+        if (name === "origin") return input.origin;
+        return undefined;
+      },
+    } as unknown as Request;
+    const next: NextFunction = (error?: unknown) => resolve(error ?? null);
+    requireCsrf({ cookieName: "azlr_csrf", allowedOrigins: ["http://localhost:3000"] })(req, {} as Response, next);
   });
-  const app = createApp();
-  app.use("/api/v1/test", router);
-  const server = createServer(app);
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
-  });
-  const address = server.address();
-  if (!address || typeof address === "string") throw new Error("Test API failed to bind.");
-  return { server, baseUrl: `http://127.0.0.1:${address.port}` };
 }
 
-test("CSRF guard rejects missing token and missing Origin", async () => {
-  const { server, baseUrl } = await startServer();
-  try {
-    const response = await fetch(`${baseUrl}/api/v1/test/csrf-check`, { method: "POST" });
-    assert.equal(response.status, 401);
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+test("CSRF guard accepts matching cookie, header and allowlisted origin", async () => {
+  const error = await runGuard({
+    cookie: "azlr_csrf=csrf-test-token",
+    header: "csrf-test-token",
+    origin: "http://localhost:3000",
+  });
+  assert.equal(error, null);
+});
+
+test("CSRF guard rejects a missing header or unapproved origin", async () => {
+  const missingHeader = await runGuard({
+    cookie: "azlr_csrf=csrf-test-token",
+    origin: "http://localhost:3000",
+  });
+  assert.equal((missingHeader as { code?: string }).code, "CSRF_TOKEN_REJECTED");
+
+  const badOrigin = await runGuard({
+    cookie: "azlr_csrf=csrf-test-token",
+    header: "csrf-test-token",
+    origin: "https://attacker.example",
+  });
+  assert.equal((badOrigin as { code?: string }).code, "CSRF_ORIGIN_REJECTED");
 });
