@@ -45,9 +45,9 @@ function parseUser(value: unknown): SupabaseAuthUser {
     user_metadata: user.user_metadata && typeof user.user_metadata === "object"
       ? user.user_metadata as Record<string, unknown>
       : {},
-    identities: Array.isArray(user.identities)
-      ? user.identities.filter((item): item is { id?: string; provider?: string } => Boolean(item) && typeof item === "object")
-      : undefined,
+    ...(Array.isArray(user.identities) ? {
+      identities: user.identities.filter((item): item is { id?: string; provider?: string } => Boolean(item) && typeof item === "object"),
+    } : {}),
   };
 }
 
