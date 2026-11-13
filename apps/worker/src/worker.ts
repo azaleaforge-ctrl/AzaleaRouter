@@ -27,6 +27,14 @@ if (queue) {
       repeat: { every: 5 * 60 * 1000 },
     },
   );
+  await queue.add(
+    "wallet.cleanup-expired-reservations",
+    {},
+    {
+      jobId: "wallet-reservations-cleanup-five-minutes",
+      repeat: { every: 5 * 60 * 1000 },
+    },
+  );
 }
 
 const catalogSyncHandler = database && env.CATALOG_SYNC_ENABLED
