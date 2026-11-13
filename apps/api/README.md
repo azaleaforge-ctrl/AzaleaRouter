@@ -74,3 +74,16 @@ Only source-verified endpoints with a USD price snapshot are returned. Catalog r
 - GET /api/v1/developers and GET /api/v1/providers — active catalog dimensions.
 
 Only source-verified endpoints with an immutable USD price snapshot are returned. The public catalog readiness threshold is 50 distinct active canonical chat models; no alias/demo records or guessed prices are inserted. Metadata sync is disabled by default and must be explicitly enabled/approved in the worker environment.
+
+
+## Wallet and payment APIs (BE-4)
+
+- `GET /api/v1/wallet` — current user's IDR wallet ledger balance, active reservations and available balance.
+- `POST /api/v1/wallet/payment-intents` — create an idempotent, pending IDR top-up intent. Browser requests require CSRF cookie/header and allowlisted Origin.
+- `POST /api/v1/payments/webhooks` — provider-signed webhook inbox. Signature verification happens before event processing. Browser redirects are never treated as payment evidence.
+
+The only adapter included in this increment is `local-sandbox`. It creates no hosted checkout and is forbidden in production. It can be enabled only for isolated development/test/staging with `PAYMENT_PROVIDER=sandbox`, `PAYMENT_PROVIDER_APPROVED=true`, and a dedicated sandbox HMAC secret. Keep `PAYMENT_PROVIDER=disabled` otherwise.
+
+Wallet balance is computed from the immutable balanced ledger minus active unexpired reservations. Wallet reserve/settle/release operations lock the wallet row, use idempotency keys and integer IDR. Usage pricing consumes explicit USD price and FX snapshots through BigInt fixed-point arithmetic; missing price/FX is not guessed.
+
+D-04 (merchant, gateway, channels, fees, refunds, chargebacks and reconciliation policy), D-07 (approved FX source/cadence), D-08 (markup), D-09 (expiry/refund/negative-balance), D-15 (maker-checker thresholds), and D-05 upstream permission remain unresolved. No live payment provider or paid traffic is enabled.
