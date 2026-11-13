@@ -90,7 +90,11 @@ test("PostgreSQL migration persists identity and enforces append-only consent", 
 
     await client.authSession.update({
       where: { id: session.id },
-      data: { revokedAt: new Date() },
+      data: {
+        revokedAt: new Date(),
+        encryptedAccessToken: "",
+        encryptedRefreshToken: "",
+      },
     });
     await assert.rejects(
       client.authSession.update({
