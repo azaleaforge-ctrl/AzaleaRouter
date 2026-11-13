@@ -1,21 +1,22 @@
 import express, { type Router } from "express";
 import type { DatabaseClient } from "@azalea-router/database";
 import type { SessionVerifier } from "./auth/session-verifier.js";
+import { env } from "./config/env.js";
 import { logger } from "./lib/logger.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { requestIdMiddleware } from "./middleware/request-id.js";
 import { requestObservabilityMiddleware } from "./middleware/request-observability.js";
 import { createSessionResolver } from "./middleware/session-resolver.js";
 import { createCorsMiddleware } from "./middleware/cors.js";
-import { env } from "./config/env.js";
 import { authUnavailableRouter } from "./routes/auth-unavailable.js";
-import { healthRouter } from "./routes/health.js";
 import { createCatalogRouter } from "./routes/catalog.js";
+import { healthRouter } from "./routes/health.js";
 
 export interface AppDependencies {
   database?: DatabaseClient;
   authRouter?: Router;
   sessionVerifier?: SessionVerifier;
+  billingRouter?: Router;
 }
 
 export function createApp(dependencies: AppDependencies = {}) {
@@ -24,12 +25,23 @@ export function createApp(dependencies: AppDependencies = {}) {
   app.use(requestIdMiddleware);
   app.use(createCorsMiddleware(env.WEB_ORIGIN ? { allowedOrigin: env.WEB_ORIGIN } : {}));
   app.use(requestObservabilityMiddleware);
-  app.use(express.json({ limit: "1mb", strict: true }));
+  app.use(express.json({
+    limit: "1mb",
+    strict: true,
+    verify: (request, _response, buffer) => {
+      (request as typeof request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer);
+    },
+  }));
   app.use("/api/v1", createSessionResolver(dependencies.sessionVerifier));
   app.use("/api/v1", dependencies.authRouter ?? authUnavailableRouter);
+
   if (dependencies.database) {
     app.use("/api/v1", createCatalogRouter(dependencies.database));
   }
+  if (dependencies.billingRouter) {
+    app.use("/api/v1", dependencies.billingRouter);
+  }
+
   app.use("/api/v1", healthRouter);
 
   app.get("/api/v1/health/ready", async (req, res) => {
