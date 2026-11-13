@@ -3,6 +3,7 @@ import { createDatabaseClient } from "@azalea-router/database";
 import { LocalSandboxPaymentAdapter, PaymentService, WalletService } from "@azalea-router/billing";
 import { createOpenRouterCatalogSyncHandler } from "@azalea-router/catalog";
 import { AuthRateLimiter } from "./auth/auth-rate-limiter.js";
+import { ApiKeyService } from "./auth/api-key-service.js";
 import { AuthSessionService } from "./auth/session-service.js";
 import { SupabaseAuthClient } from "./auth/supabase-auth-client.js";
 import { TurnstileVerifier } from "./auth/turnstile-verifier.js";
@@ -11,6 +12,7 @@ import { env } from "./config/env.js";
 import { logger } from "./lib/logger.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { createBillingRouter } from "./routes/billing.js";
+import { createApiKeyRouter } from "./routes/api-keys.js";
 
 async function start(): Promise<void> {
   const database = env.DATABASE_URL
@@ -81,10 +83,21 @@ async function start(): Promise<void> {
     });
   }
 
+  const apiKeyRouter = database && env.API_KEY_HASH_PEPPER
+    ? createApiKeyRouter(
+        new ApiKeyService(database, env.API_KEY_HASH_PEPPER, env.API_KEY_PEPPER_VERSION),
+        {
+          csrfCookieName: auth?.sessionVerifier.csrfCookieName ?? "azlr_csrf",
+          allowedOrigins: env.WEB_ORIGIN ? [env.WEB_ORIGIN] : [],
+        },
+      )
+    : undefined;
+
   const app = createApp({
     ...(database ? { database } : {}),
     ...(auth ? { authRouter: auth.router, sessionVerifier: auth.sessionVerifier } : {}),
     ...(billingRouter ? { billingRouter } : {}),
+    ...(apiKeyRouter ? { apiKeyRouter } : {}),
   });
   const server = createServer(app);
   server.listen(env.API_PORT, env.API_HOST, () => {
