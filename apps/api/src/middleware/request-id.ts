@@ -1,9 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { RequestHandler } from "express";
 
-declare module "express" {
-  interface Request {
-    requestId: string;
+declare global {
+  // Express exposes its extension point through this global namespace.
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      requestId: string;
+    }
   }
 }
 
