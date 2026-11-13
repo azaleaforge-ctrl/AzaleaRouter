@@ -1,4 +1,5 @@
 import { createDatabaseClient } from "@azalea-router/database";
+import { createOpenRouterCatalogSyncHandler } from "@azalea-router/catalog";
 import { env } from "./config/env.js";
 import { createJobHandlers } from "./handlers/index.js";
 import { logWorkerEvent, type SafeWorkerLogFields } from "./lib/logger.js";
@@ -20,7 +21,27 @@ if (queue) {
   );
 }
 
-const worker = createBackgroundWorker({ handlers: createJobHandlers(database) });
+const catalogSyncHandler = database && env.CATALOG_SYNC_ENABLED
+  ? createOpenRouterCatalogSyncHandler(database, {
+      apiKey: env.OPENROUTER_CATALOG_API_KEY!,
+      endpointConcurrency: 4,
+    })
+  : undefined;
+
+if (queue && catalogSyncHandler) {
+  await queue.add(
+    "catalog.openrouter.sync",
+    {},
+    {
+      jobId: "catalog-openrouter-sync-6-hourly",
+      repeat: { every: 6 * 60 * 60 * 1000 },
+    },
+  );
+}
+
+const worker = createBackgroundWorker({
+  handlers: createJobHandlers(database, catalogSyncHandler),
+});
 
 worker.on("completed", (job) => {
   const fields: SafeWorkerLogFields = {
