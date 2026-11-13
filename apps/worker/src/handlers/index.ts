@@ -13,7 +13,7 @@ export function createJobHandlers(
   if (database) {
     handlers.set("auth.cleanup-expired", async () => {
       const now = new Date();
-      const [revokedSessions, deletedTurnstileUses, deletedRateLimitBuckets] = await Promise.all([
+      const [revokedSessions, deletedTurnstileUses, deletedRateLimitBuckets, expiredPaymentIntents] = await Promise.all([
         database.authSession.updateMany({
           where: { revokedAt: null, refreshExpiresAt: { lte: now } },
           data: {
@@ -24,12 +24,17 @@ export function createJobHandlers(
         }),
         database.turnstileTokenUse.deleteMany({ where: { expiresAt: { lt: now } } }),
         database.authRateLimit.deleteMany({ where: { expiresAt: { lt: now } } }),
+        database.paymentIntent.updateMany({
+          where: { status: { in: ["pending", "processing"] }, expiresAt: { lte: now } },
+          data: { status: "expired" },
+        }),
       ]);
 
       return {
         revoked_sessions: revokedSessions.count,
         deleted_turnstile_uses: deletedTurnstileUses.count,
         deleted_rate_limit_buckets: deletedRateLimitBuckets.count,
+        expired_payment_intents: expiredPaymentIntents.count,
       };
     });
   }
