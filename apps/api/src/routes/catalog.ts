@@ -1,5 +1,5 @@
 import { Router } from "express";
-import type { DatabaseClient } from "@azalea-router/database";
+import type { DatabaseClient, Prisma } from "@azalea-router/database";
 import { z } from "zod";
 import { HttpError } from "../lib/http-error.js";
 
@@ -135,7 +135,7 @@ export function createCatalogRouter(database: DatabaseClient): Router {
 
   router.get("/models", async (req, res) => {
     const query = listQuerySchema.parse(req.query);
-    const clauses: object[] = [
+    const clauses: Prisma.CatalogModelWhereInput[] = [
       { source: "openrouter" },
       { isActive: true },
       {
@@ -174,7 +174,7 @@ export function createCatalogRouter(database: DatabaseClient): Router {
       });
     }
 
-    const where = { AND: clauses };
+    const where: Prisma.CatalogModelWhereInput = { AND: clauses };
     const [rows, totalActive] = await Promise.all([
       database.catalogModel.findMany({
         where,
