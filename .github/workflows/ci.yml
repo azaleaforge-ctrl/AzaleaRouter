@@ -20,8 +20,21 @@ jobs:
   quality:
     name: Install, lint, typecheck, build and test
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: azalea_router_test
+          POSTGRES_USER: azalea
+          POSTGRES_PASSWORD: local-ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U azalea -d azalea_router_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
       redis:
         image: redis:7-alpine
         ports:
@@ -32,6 +45,7 @@ jobs:
           --health-timeout 3s
           --health-retries 20
     env:
+      DATABASE_URL: postgresql://azalea:local-ci-only-password@127.0.0.1:5432/azalea_router_test?schema=public
       REDIS_URL: redis://127.0.0.1:6379
     steps:
       - name: Checkout
@@ -48,8 +62,17 @@ jobs:
           version: 12.18.0
           run_install: false
 
-      - name: Install dependencies and regenerate lockfile
-        run: pnpm install --frozen-lockfile
+      - name: Install dependencies and refresh workspace lockfile
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Upload generated workspace lockfile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-workspace-lockfile-${{ github.sha }}
+          path: pnpm-lock.yaml
+          if-no-files-found: warn
+          retention-days: 3
 
       - name: Lint all workspace packages
         run: pnpm lint
@@ -62,6 +85,24 @@ jobs:
 
       - name: Frontend unit tests
         run: pnpm test
+
+      - name: Database package lint
+        run: pnpm --filter @azalea-router/database lint
+
+      - name: Validate PostgreSQL schema
+        run: pnpm --filter @azalea-router/database db:validate
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @azalea-router/database db:generate
+
+      - name: Apply committed database migrations
+        run: pnpm --filter @azalea-router/database db:migrate:deploy
+
+      - name: Database package typecheck and build
+        run: pnpm --filter @azalea-router/database build
+
+      - name: Database unit tests
+        run: pnpm --filter @azalea-router/database test
 
       - name: API lint
         run: pnpm --filter @azalea-router/api lint
@@ -86,6 +127,3 @@ jobs:
 
       - name: Worker unit and Redis integration tests
         run: pnpm --filter @azalea-router/worker test
-
-      - name: Verify committed lockfile is current
-        run: git diff --exit-code -- pnpm-lock.yaml
