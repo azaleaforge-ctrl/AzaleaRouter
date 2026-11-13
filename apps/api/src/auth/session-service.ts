@@ -187,7 +187,11 @@ export class AuthSessionService implements SessionVerifier {
     }
 
     const providerUser = await this.provider.getUser(accessToken);
-    if (!providerUser.email || providerUser.id !== record.user.authSubjectId) return null;
+    if (
+      !providerUser.email ||
+      providerUser.id !== record.user.authSubjectId ||
+      providerUser.email.trim().toLowerCase() !== record.user.emailNormalized
+    ) return null;
 
     let user = record.user;
     if (!user.emailVerifiedAt && (providerUser.email_confirmed_at || providerUser.confirmed_at)) {
