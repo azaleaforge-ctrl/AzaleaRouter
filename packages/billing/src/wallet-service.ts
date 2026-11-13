@@ -1,5 +1,5 @@
 import type { DatabaseClient } from "@azalea-router/database";
-import { addIdr, parseIdrAmount, subtractIdr, toIdrAmount } from "./money.js";
+import { parseIdrAmount, toIdrAmount } from "./money.js";
 
 export interface WalletBalance {
   currency: "IDR";
