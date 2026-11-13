@@ -36,6 +36,11 @@ export function requirePermission(permission: Permission): RequestHandler {
       return;
     }
 
+    if (req.auth.status !== "active") {
+      next(new HttpError(403, "ACCOUNT_NOT_ACTIVE", "This account cannot perform this action."));
+      return;
+    }
+
     if (!hasPermission(req.auth.role, permission)) {
       next(new HttpError(403, "FORBIDDEN", "You do not have permission to perform this action."));
       return;
