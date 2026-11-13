@@ -12,7 +12,7 @@ The user authorized completion of BE-0 through BE-9 before any merge. Only after
 
 | Workstream | Status | Current evidence / gap |
 |---|---|---|
-| BE-0 — legal and architecture decisions | In progress / Blocked for paid launch | Decision register is in [DECISION-LOG.md](./DECISION-LOG.md). D-01/02/03/04/06/07/08/09/10/12/13/14/15/18 remain OPEN. D-05 written upstream permission is a BLOCKER for paid downstream access. No approval or contract is inferred. |
+| BE-0 — legal and architecture decisions | In progress / Blocked for paid launch | Decision register is in [DECISION-LOG.md](./DECISION-LOG.md). D-01/02/03/04/06/07/08/09/10/12/13/14/15/18 remain OPEN. Current OpenRouter public Terms of Service §7 item 4 (last updated 31 Aug 2026) expressly prohibits reselling API access to Models / developing a competing service; §5.1's incorporated-product customer language is subject to model terms and does not itself clearly approve a downstream reseller gateway. D-05 therefore remains a BLOCKER pending a signed written clarification/exception and legal review. No paid gateway access is authorized or inferred. |
 | BE-1 — backend foundation | In progress | PR #2 now includes Express 5 + TypeScript API skeleton, Zod config, request ID, safe error envelope, health endpoint, structured allowlist logger, graceful shutdown, API tests, OpenAPI 3.1 health contract, BullMQ worker package, Redis URL parser, retry/retention policies, worker tests, local Redis Compose service and expanded CI workflow. Remaining: generated pnpm lockfile importer/commit; CI validation; PostgreSQL/Prisma after D-01 approval; finish observability and API/worker operational verification. |
 | BE-2 — authentication and RBAC | In progress | PR #3 adds provider-neutral SessionVerifier boundary, runtime principal schema, role/permission matrix, ownership helpers, guards, session introspection and policy tests. Real provider, persistence, register/login/logout/verification/reset, email, Turnstile, profile and consent remain incomplete. |
 | BE-3 — catalog and providers | Not started | Need canonical model/developer/provider/endpoint catalog, current source-backed pricing snapshots, sync worker and capability checks. Public catalog requires at least 50 distinct active canonical chat models with valid endpoints and pricing. |
@@ -41,7 +41,7 @@ The user authorized completion of BE-0 through BE-9 before any merge. Only after
 
 ## Open decisions / blockers
 
-The authoritative register is [DECISION-LOG.md](./DECISION-LOG.md), derived from [Backend PRD v0.4 Section 16](https://github.com/azaleaforge-ctrl/AzaleaRouter/blob/docs/backend-prd-v0.4-stage1/AzaleaRouter-PRD-Backend-v0.4.md#dependencies-dan-open-decisions). Keep paid access disabled until D-05 is backed by written upstream permission and D-04 merchant/payment onboarding is approved. Do not invent credentials, provider approvals, retention policy or legal basis.
+The authoritative register is [DECISION-LOG.md](./DECISION-LOG.md), derived from [Backend PRD v0.4 Section 16](https://github.com/azaleaforge-ctrl/AzaleaRouter/blob/docs/backend-prd-v0.4-stage1/AzaleaRouter-PRD-Backend-v0.4.md#dependencies-dan-open-decisions). Keep paid access disabled until D-05 is backed by a signed written upstream clarification/exception and D-04 merchant/payment onboarding is approved. The reviewed public terms are linked in DECISION-LOG.md. Do not invent credentials, provider approvals, retention policy or legal basis.
 
 ## Next actions
 
