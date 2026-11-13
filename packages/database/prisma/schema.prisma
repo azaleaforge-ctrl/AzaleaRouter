@@ -418,6 +418,7 @@ model WalletReservation {
   walletAccountId   String   @map("wallet_account_id") @db.Uuid
   idempotencyKey    String   @unique @map("idempotency_key") @db.VarChar(128)
   amount            Decimal  @db.Decimal(38, 0)
+  settledAmount     Decimal? @map("settled_amount") @db.Decimal(38, 0)
   currency          String   @default("IDR") @db.Char(3)
   status            String   @default("reserved") @db.VarChar(16)
   expiresAt         DateTime @map("expires_at") @db.Timestamptz(6)
