@@ -138,7 +138,7 @@ jobs:
 
   lockfile-sync:
     name: Commit generated workspace lockfile and verify frozen install
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/feat/')
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'feat/')
     needs: quality
     runs-on: ubuntu-latest
     permissions:
@@ -148,7 +148,7 @@ jobs:
       - name: Checkout feature branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
       - name: Download generated lockfile
@@ -159,6 +159,8 @@ jobs:
 
       - name: Commit generated lockfile when changed
         id: commit-lockfile
+        env:
+          BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
         shell: bash
         run: |
           cp .lockfile-artifact/pnpm-lock.yaml pnpm-lock.yaml
@@ -170,13 +172,14 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add pnpm-lock.yaml
           git commit -m "chore(deps): sync pnpm workspace lockfile"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git push origin "HEAD:${BRANCH_NAME}"
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
       - name: Dispatch exact-head frozen-lockfile validation
         if: steps.commit-lockfile.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
         shell: bash
         run: |
           curl --fail-with-body --silent --show-error \
@@ -185,4 +188,4 @@ jobs:
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/dispatches" \
-            -d "{\"ref\":\"${GITHUB_REF_NAME}\"}"
+            -d "{\"ref\":\"${BRANCH_NAME}\"}"
