@@ -14,10 +14,9 @@ test("signed payment webhook credits wallet once and duplicate event is idempote
   const database = createDatabaseClient(databaseUrl!);
   await database.$connect();
 
-  const rollback = new Error("ROLLBACK_PAYMENT_FIXTURE");
-  const userId = await database.$transaction(async (tx) => {
+  try {
     const suffix = randomUUID();
-    const user = await tx.user.create({
+    const user = await database.user.create({
       data: {
         authSubjectId: suffix,
         emailNormalized: `wallet-${suffix}@example.test`,
@@ -27,18 +26,12 @@ test("signed payment webhook credits wallet once and duplicate event is idempote
         preferences: { create: {} },
       },
     });
-    throw Object.assign(rollback, { userId: user.id });
-  }).catch((error: unknown) => {
-    if (error === rollback && "userId" in rollback) return (rollback as Error & { userId: string }).userId;
-    throw error;
-  });
 
-  try {
     const wallet = new WalletService(database);
     const adapter = new LocalSandboxPaymentAdapter("billing-integration-test-key-not-production");
     const service = new PaymentService(database, adapter, { intentLifetimeSeconds: 1800 });
     const intent = await service.createIntent({
-      userId,
+      userId: user.id,
       amountIdr: "125000",
       idempotencyKey: `test-topup-${randomUUID()}`,
     });
@@ -61,11 +54,12 @@ test("signed payment webhook credits wallet once and duplicate event is idempote
     assert.equal(second.accepted, true);
     assert.equal(second.duplicate, true);
 
-    const balance = await wallet.getBalance(userId);
+    const balance = await wallet.getBalance(user.id);
     assert.equal(balance.ledgerBalance, "125000");
     assert.equal(balance.availableBalance, "125000");
   } finally {
-    await database.user.deleteMany({ where: { id: userId } });
+    // Financial rows are intentionally retained in this disposable CI database:
+    // ledger/payment history is protected by restrict FKs and immutability triggers.
     await database.$disconnect();
   }
 });
