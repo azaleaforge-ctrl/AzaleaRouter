@@ -1,0 +1,60 @@
+name: Backend and frontend CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: azaleahouse-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Install, lint, typecheck, build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.18.0
+          run_install: false
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Frontend typecheck
+        run: pnpm typecheck
+
+      - name: Frontend unit tests
+        run: pnpm test
+
+      - name: API typecheck
+        run: pnpm --filter @azalea-router/api typecheck
+
+      - name: API build
+        run: pnpm --filter @azalea-router/api build
+
+      - name: API tests
+        run: pnpm --filter @azalea-router/api test
+
+      - name: Verify committed lockfile is current
+        run: git diff --exit-code -- pnpm-lock.yaml
