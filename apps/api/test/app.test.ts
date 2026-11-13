@@ -101,3 +101,17 @@ test("unknown API routes use the standard request-correlated error envelope", as
     await closeTestServer(server);
   }
 });
+
+test("readiness endpoint is unavailable until a database is configured", async () => {
+  const { server, baseUrl } = await startTestServer();
+
+  try {
+    const response = await fetch(`${baseUrl}/api/v1/health/ready`);
+    const body = (await response.json()) as { status: string; dependencies: { database: string } };
+    assert.equal(response.status, 503);
+    assert.equal(body.status, "not_ready");
+    assert.equal(body.dependencies.database, "not_configured");
+  } finally {
+    await closeTestServer(server);
+  }
+});
