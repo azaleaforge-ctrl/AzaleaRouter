@@ -49,17 +49,7 @@ jobs:
           run_install: false
 
       - name: Install dependencies and regenerate lockfile
-        run: pnpm install --no-frozen-lockfile
-
-      # Temporary artifact to bring the pnpm-generated lockfile back into the
-      # review branch. Remove after the generated lockfile has been committed.
-      - name: Upload generated workspace lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: generated-pnpm-lockfile
-          path: pnpm-lock.yaml
-          if-no-files-found: error
-          retention-days: 2
+        run: pnpm install --frozen-lockfile
 
       - name: Lint all workspace packages
         run: pnpm lint
@@ -97,44 +87,5 @@ jobs:
       - name: Worker unit and Redis integration tests
         run: pnpm --filter @azalea-router/worker test
 
-
-  sync-lockfile:
-    name: Commit generated workspace lockfile
-    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/backend-foundation-be1'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout BE-1 feature branch
-        uses: actions/checkout@v4
-        with:
-          ref: feat/backend-foundation-be1
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 12.18.0
-          run_install: false
-
-      - name: Generate complete workspace lockfile
-        run: pnpm install --no-frozen-lockfile
-
-      - name: Commit lockfile only to BE-1 feature branch
-        shell: bash
-        run: |
-          if git diff --quiet -- pnpm-lock.yaml; then
-            echo "Workspace lockfile already current."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add pnpm-lock.yaml
-          git commit -m "chore(pnpm): sync workspace lockfile"
-          git push origin HEAD:refs/heads/feat/backend-foundation-be1
+      - name: Verify committed lockfile is current
+        run: git diff --exit-code -- pnpm-lock.yaml
