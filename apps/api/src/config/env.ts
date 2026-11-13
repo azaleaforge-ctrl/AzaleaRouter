@@ -1,6 +1,15 @@
 import { z } from "zod";
 
-const booleanFromEnv = z.enum(["true", "false"]).transform((value) => value === "true");
+const booleanFromEnv = z.preprocess(
+  (value) => value === undefined
+    ? false
+    : value === "true"
+      ? true
+      : value === "false"
+        ? false
+        : value,
+  z.boolean(),
+);
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "staging", "production"]).default("development"),
