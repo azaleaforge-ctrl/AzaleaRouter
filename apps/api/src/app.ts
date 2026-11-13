@@ -21,7 +21,7 @@ export function createApp(dependencies: AppDependencies = {}) {
   const app = express();
   app.disable("x-powered-by");
   app.use(requestIdMiddleware);
-  app.use(createCorsMiddleware({ allowedOrigin: env.WEB_ORIGIN }));
+  app.use(createCorsMiddleware(env.WEB_ORIGIN ? { allowedOrigin: env.WEB_ORIGIN } : {}));
   app.use(requestObservabilityMiddleware);
   app.use(express.json({ limit: "1mb", strict: true }));
   app.use("/api/v1", createSessionResolver(dependencies.sessionVerifier));
