@@ -7,28 +7,27 @@ test("auth cleanup revokes expired sessions and deletes expired challenge/rate b
   const calls: string[] = [];
   const database = {
     authSession: {
-      updateMany: async (args: unknown) => {
+      updateMany: async (args: { where: { revokedAt: null; refreshExpiresAt: { lte: Date } }; data: { revokedAt: Date; encryptedAccessToken: string; encryptedRefreshToken: string } }) => {
         calls.push("sessions");
-        assert.deepEqual(args, {
-          where: { revokedAt: null, refreshExpiresAt: { lte: args && new Date() } },
-          data: {
-            revokedAt: (args as { data: { revokedAt: Date } }).data.revokedAt,
-            encryptedAccessToken: "",
-            encryptedRefreshToken: "",
-          },
-        });
+        assert.equal(args.where.revokedAt, null);
+        assert.ok(args.where.refreshExpiresAt.lte instanceof Date);
+        assert.ok(args.data.revokedAt instanceof Date);
+        assert.equal(args.data.encryptedAccessToken, "");
+        assert.equal(args.data.encryptedRefreshToken, "");
         return { count: 2 };
       },
     },
     turnstileTokenUse: {
-      deleteMany: async () => {
+      deleteMany: async (args: { where: { expiresAt: { lt: Date } } }) => {
         calls.push("turnstile");
+        assert.ok(args.where.expiresAt.lt instanceof Date);
         return { count: 7 };
       },
     },
     authRateLimit: {
-      deleteMany: async () => {
+      deleteMany: async (args: { where: { expiresAt: { lt: Date } } }) => {
         calls.push("rate-limit");
+        assert.ok(args.where.expiresAt.lt instanceof Date);
         return { count: 3 };
       },
     },
