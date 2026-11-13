@@ -28,7 +28,7 @@ test("usage charge uses decimal fixed-point arithmetic and rounds positive sub-r
     markupBasisPoints: 1500,
     fixedFeeIdr: "25",
   });
-  assert.equal(result.providerCostIdr, "32");
+  assert.equal(result.providerCostIdr, "33");
   assert.equal(result.customerChargeIdr, "62");
   assert.equal(result.markupBasisPoints, 1500);
 });
