@@ -340,14 +340,33 @@ CREATE TRIGGER "payment_intents_no_delete"
   BEFORE DELETE ON "payment_intents"
   FOR EACH ROW EXECUTE FUNCTION "reject_payment_intent_delete"();
 
-CREATE FUNCTION "reject_payment_webhook_mutation"() RETURNS trigger AS $$
+CREATE FUNCTION "guard_payment_webhook_processing"() RETURNS trigger AS $
 BEGIN
-  RAISE EXCEPTION 'payment webhook inbox records are immutable';
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'payment webhook inbox records cannot be deleted';
+  END IF;
+  IF OLD."id" <> NEW."id"
+     OR OLD."provider" <> NEW."provider"
+     OR OLD."provider_event_id" <> NEW."provider_event_id"
+     OR OLD."body_hash" <> NEW."body_hash"
+     OR OLD."signature_verified_at" <> NEW."signature_verified_at"
+     OR OLD."payment_intent_id" IS DISTINCT FROM NEW."payment_intent_id"
+     OR OLD."received_at" <> NEW."received_at"
+     OR OLD."safe_summary" IS DISTINCT FROM NEW."safe_summary" THEN
+    RAISE EXCEPTION 'payment webhook receipt identity is immutable';
+  END IF;
+  IF OLD."status" <> 'received' OR NEW."status" NOT IN ('processed','rejected','failed') THEN
+    RAISE EXCEPTION 'invalid payment webhook processing transition';
+  END IF;
+  IF NEW."status" = 'processed' AND NEW."processed_at" IS NULL THEN
+    RAISE EXCEPTION 'processed webhook requires processing timestamp';
+  END IF;
+  RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
-CREATE TRIGGER "payment_webhooks_no_update_delete"
+$ LANGUAGE plpgsql;
+CREATE TRIGGER "payment_webhooks_processing_guard"
   BEFORE UPDATE OR DELETE ON "payment_webhooks"
-  FOR EACH ROW EXECUTE FUNCTION "reject_payment_webhook_mutation"();
+  FOR EACH ROW EXECUTE FUNCTION "guard_payment_webhook_processing"();
 
 CREATE FUNCTION "reject_financial_snapshot_mutation"() RETURNS trigger AS $$
 BEGIN
