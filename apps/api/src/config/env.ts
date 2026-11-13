@@ -37,6 +37,11 @@ const envSchema = z.object({
   AUTH_PRIVACY_VERSION: z.string().min(1).max(64).optional(),
   API_KEY_HASH_PEPPER: z.string().min(32).optional(),
   API_KEY_PEPPER_VERSION: z.string().min(1).max(32).default("v1"),
+  GATEWAY_ENABLED: booleanFromEnv.default(false),
+  UPSTREAM_PROVIDER_APPROVED: booleanFromEnv.default(false),
+  BILLING_SETTLEMENT_ENABLED: booleanFromEnv.default(false),
+  UPSTREAM_OPENROUTER_API_KEY: z.string().min(1).optional(),
+  UPSTREAM_COMMERCIAL_APPROVAL_REFERENCE: z.string().min(8).max(255).optional(),
   PAYMENT_PROVIDER: z.enum(["disabled", "sandbox"]).default("disabled"),
   PAYMENT_PROVIDER_APPROVED: booleanFromEnv.default(false),
   PAYMENT_SANDBOX_WEBHOOK_SECRET: z.string().min(32).optional(),
@@ -112,6 +117,18 @@ if (value.AUTH_PROVIDER === "supabase") {
   }
   if (encryptionKey.length !== 32) {
     throw new Error("AUTH_TOKEN_ENCRYPTION_KEY must be base64-encoded 32-byte key material.");
+  }
+}
+
+if (value.GATEWAY_ENABLED) {
+  if (!value.UPSTREAM_PROVIDER_APPROVED || !value.UPSTREAM_COMMERCIAL_APPROVAL_REFERENCE) {
+    throw new Error("Gateway activation requires documented upstream commercial approval.");
+  }
+  if (!value.BILLING_SETTLEMENT_ENABLED) {
+    throw new Error("Gateway activation requires the usage reservation and settlement system.");
+  }
+  if (!value.UPSTREAM_OPENROUTER_API_KEY) {
+    throw new Error("Gateway activation requires an upstream credential in server-side secret storage.");
   }
 }
 
