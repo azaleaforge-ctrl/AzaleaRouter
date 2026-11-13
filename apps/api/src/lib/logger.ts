@@ -8,6 +8,8 @@ export interface SafeLogFields {
   host?: string;
   port?: number;
   environment?: string;
+  method?: string;
+  durationMs?: number;
 }
 
 function write(level: LogLevel, event: string, fields: SafeLogFields = {}): void {
@@ -26,7 +28,7 @@ function write(level: LogLevel, event: string, fields: SafeLogFields = {}): void
 
 /**
  * Structured JSON logging with an explicit allowlist of fields.
- * Request bodies, headers, cookies, credentials, tokens, provider payloads,
+ * Request bodies, URLs, headers, cookies, credentials, tokens, provider payloads,
  * prompts and arbitrary error messages are deliberately not accepted.
  */
 export const logger = Object.freeze({
