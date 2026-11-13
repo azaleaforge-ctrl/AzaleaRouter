@@ -46,6 +46,10 @@ model User {
 
   @@index([status, createdAt])
   @@map("users")
+  walletAccount       WalletAccount?
+  ledgerAccounts      LedgerAccount[]
+  walletReservations  WalletReservation[]
+  paymentIntents      PaymentIntent[]
 }
 
 model UserProfile {
@@ -319,4 +323,175 @@ model CatalogSyncRun {
   @@index([source, startedAt])
   @@index([status, startedAt])
   @@map("catalog_sync_runs")
+}
+
+model LedgerAccount {
+  id            String   @id @default(uuid()) @db.Uuid
+  code          String   @unique @db.VarChar(80)
+  name          String   @db.VarChar(160)
+  accountType   String   @map("account_type") @db.VarChar(32)
+  normalBalance String   @map("normal_balance") @db.VarChar(8)
+  currency      String   @db.Char(3)
+  ownerUserId   String?  @map("owner_user_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  owner         User?          @relation(fields: [ownerUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  walletAccount WalletAccount?
+  entries       LedgerEntry[]
+
+  @@index([ownerUserId, currency])
+  @@map("ledger_accounts")
+}
+
+model WalletAccount {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @unique @map("user_id") @db.Uuid
+  ledgerAccountId String   @unique @map("ledger_account_id") @db.Uuid
+  currency        String   @default("IDR") @db.Char(3)
+  status          String   @default("active") @db.VarChar(16)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  ledgerAccount LedgerAccount @relation(fields: [ledgerAccountId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  reservations  WalletReservation[]
+
+  @@index([status, currency])
+  @@map("wallet_accounts")
+}
+
+model LedgerTransaction {
+  id             String   @id @default(uuid()) @db.Uuid
+  idempotencyKey String   @unique @map("idempotency_key") @db.VarChar(128)
+  transactionType String  @map("transaction_type") @db.VarChar(40)
+  currency       String   @db.Char(3)
+  status         String   @default("pending") @db.VarChar(16)
+  referenceType  String?  @map("reference_type") @db.VarChar(40)
+  referenceId    String?  @map("reference_id") @db.VarChar(128)
+  safeMetadata   Json?    @map("safe_metadata") @db.JsonB
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  postedAt       DateTime? @map("posted_at") @db.Timestamptz(6)
+
+  entries       LedgerEntry[]
+  reservations  WalletReservation[]
+
+  @@index([referenceType, referenceId])
+  @@index([status, createdAt])
+  @@map("ledger_transactions")
+}
+
+model LedgerEntry {
+  id                  String   @id @default(uuid()) @db.Uuid
+  ledgerTransactionId String   @map("ledger_transaction_id") @db.Uuid
+  ledgerAccountId     String   @map("ledger_account_id") @db.Uuid
+  direction           String   @db.VarChar(8)
+  amount              Decimal  @db.Decimal(38, 0)
+  currency            String   @db.Char(3)
+  memo                String?  @db.VarChar(255)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  transaction   LedgerTransaction @relation(fields: [ledgerTransactionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  ledgerAccount LedgerAccount     @relation(fields: [ledgerAccountId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([ledgerAccountId, createdAt])
+  @@index([ledgerTransactionId])
+  @@map("ledger_entries")
+}
+
+model WalletReservation {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  walletAccountId   String   @map("wallet_account_id") @db.Uuid
+  idempotencyKey    String   @unique @map("idempotency_key") @db.VarChar(128)
+  amount            Decimal  @db.Decimal(38, 0)
+  currency          String   @default("IDR") @db.Char(3)
+  status            String   @default("reserved") @db.VarChar(16)
+  expiresAt         DateTime @map("expires_at") @db.Timestamptz(6)
+  ledgerTransactionId String? @unique @map("ledger_transaction_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  walletAccount     WalletAccount      @relation(fields: [walletAccountId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  ledgerTransaction LedgerTransaction? @relation(fields: [ledgerTransactionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([walletAccountId, status, expiresAt])
+  @@index([userId, createdAt])
+  @@map("wallet_reservations")
+}
+
+model PaymentIntent {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  provider          String   @db.VarChar(32)
+  providerReference String?  @unique @map("provider_reference") @db.VarChar(255)
+  idempotencyKey    String   @unique @map("idempotency_key") @db.VarChar(128)
+  amount            Decimal  @db.Decimal(38, 0)
+  currency          String   @default("IDR") @db.Char(3)
+  status            String   @default("pending") @db.VarChar(16)
+  expiresAt         DateTime @map("expires_at") @db.Timestamptz(6)
+  safeMetadata      Json?    @map("safe_metadata") @db.JsonB
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  webhooks PaymentWebhook[]
+
+  @@index([userId, createdAt])
+  @@index([status, expiresAt])
+  @@map("payment_intents")
+}
+
+model PaymentWebhook {
+  id                String   @id @default(uuid()) @db.Uuid
+  provider          String   @db.VarChar(32)
+  providerEventId   String   @map("provider_event_id") @db.VarChar(255)
+  bodyHash          String   @map("body_hash") @db.Char(64)
+  signatureVerifiedAt DateTime @map("signature_verified_at") @db.Timestamptz(6)
+  status            String   @default("received") @db.VarChar(16)
+  paymentIntentId   String?  @map("payment_intent_id") @db.Uuid
+  processedAt       DateTime? @map("processed_at") @db.Timestamptz(6)
+  safeSummary       Json?    @map("safe_summary") @db.JsonB
+  receivedAt       DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+
+  paymentIntent PaymentIntent? @relation(fields: [paymentIntentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([provider, providerEventId])
+  @@index([paymentIntentId, receivedAt])
+  @@index([status, receivedAt])
+  @@map("payment_webhooks")
+}
+
+model FxRateSnapshot {
+  id              String   @id @default(uuid()) @db.Uuid
+  baseCurrency    String   @map("base_currency") @db.Char(3)
+  quoteCurrency   String   @map("quote_currency") @db.Char(3)
+  rate            Decimal  @db.Decimal(38, 24)
+  source           String   @db.VarChar(80)
+  sourceFetchedAt DateTime @map("source_fetched_at") @db.Timestamptz(6)
+  payloadHash     String   @map("payload_hash") @db.Char(64)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  pricingPolicies PricingPolicySnapshot[]
+
+  @@index([baseCurrency, quoteCurrency, sourceFetchedAt])
+  @@map("fx_rate_snapshots")
+}
+
+model PricingPolicySnapshot {
+  id                    String   @id @default(uuid()) @db.Uuid
+  catalogPriceSnapshotId String  @map("catalog_price_snapshot_id") @db.Uuid
+  fxRateSnapshotId      String   @map("fx_rate_snapshot_id") @db.Uuid
+  policyVersion         String   @map("policy_version") @db.VarChar(64)
+  markupBasisPoints     Int      @map("markup_basis_points")
+  fixedFeeIdr           Decimal  @default(0) @map("fixed_fee_idr") @db.Decimal(38, 0)
+  maximumStaleSeconds   Int      @map("maximum_stale_seconds")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  fxRateSnapshot FxRateSnapshot @relation(fields: [fxRateSnapshotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([catalogPriceSnapshotId, createdAt])
+  @@index([fxRateSnapshotId])
+  @@map("pricing_policy_snapshots")
 }
