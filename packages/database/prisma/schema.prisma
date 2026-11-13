@@ -189,3 +189,134 @@ model AuthRateLimit {
   @@index([expiresAt])
   @@map("auth_rate_limits")
 }
+
+model CatalogDeveloper {
+  id          String   @id @default(uuid()) @db.Uuid
+  source      String   @db.VarChar(32)
+  slug        String   @db.VarChar(255)
+  displayName String   @map("display_name") @db.VarChar(255)
+  sourceUrl   String?  @map("source_url") @db.VarChar(1000)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  models CatalogModel[]
+
+  @@unique([source, slug])
+  @@index([displayName])
+  @@map("catalog_developers")
+}
+
+model CatalogProvider {
+  id          String   @id @default(uuid()) @db.Uuid
+  source      String   @db.VarChar(32)
+  slug        String   @db.VarChar(255)
+  displayName String   @map("display_name") @db.VarChar(255)
+  sourceUrl   String?  @map("source_url") @db.VarChar(1000)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  endpoints CatalogEndpoint[]
+
+  @@unique([source, slug])
+  @@index([displayName])
+  @@map("catalog_providers")
+}
+
+model CatalogModel {
+  id                   String   @id @default(uuid()) @db.Uuid
+  source               String   @db.VarChar(32)
+  sourceModelId        String   @map("source_model_id") @db.VarChar(255)
+  canonicalSlug        String   @map("canonical_slug") @db.VarChar(255)
+  name                 String   @db.VarChar(255)
+  description          String?  @db.Text
+  sourceCreatedAt      DateTime? @map("source_created_at") @db.Timestamptz(6)
+  sourceUpdatedAt      DateTime? @map("source_updated_at") @db.Timestamptz(6)
+  contextLength        Int?     @map("context_length")
+  maxCompletionTokens  Int?     @map("max_completion_tokens")
+  inputModalities      String[] @map("input_modalities")
+  outputModalities     String[] @map("output_modalities")
+  supportedParameters  String[] @map("supported_parameters")
+  servedEndpoints      String[] @map("served_endpoints")
+  rawMetadata          Json     @map("raw_metadata") @db.JsonB
+  isActive             Boolean  @default(true) @map("is_active")
+  lastSeenAt           DateTime @map("last_seen_at") @db.Timestamptz(6)
+  developerId          String?  @map("developer_id") @db.Uuid
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  developer CatalogDeveloper? @relation(fields: [developerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  endpoints CatalogEndpoint[]
+
+  @@unique([source, canonicalSlug])
+  @@unique([source, sourceModelId])
+  @@index([isActive, name])
+  @@index([developerId, isActive])
+  @@map("catalog_models")
+}
+
+model CatalogEndpoint {
+  id                  String   @id @default(uuid()) @db.Uuid
+  source              String   @db.VarChar(32)
+  sourceEndpointId    String   @map("source_endpoint_id") @db.VarChar(512)
+  modelId             String   @map("model_id") @db.Uuid
+  providerId          String   @map("provider_id") @db.Uuid
+  endpointName        String   @map("endpoint_name") @db.VarChar(255)
+  modelVariant        String?  @map("model_variant") @db.VarChar(255)
+  apiPath             String   @map("api_path") @db.VarChar(255)
+  contextLength       Int?     @map("context_length")
+  maxCompletionTokens Int?    @map("max_completion_tokens")
+  maxPromptTokens     Int?     @map("max_prompt_tokens")
+  quantization        String?  @db.VarChar(64)
+  supportedParameters String[] @map("supported_parameters")
+  isActive            Boolean  @default(true) @map("is_active")
+  rawMetadata         Json     @map("raw_metadata") @db.JsonB
+  sourceFetchedAt     DateTime @map("source_fetched_at") @db.Timestamptz(6)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  model    CatalogModel          @relation(fields: [modelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  provider CatalogProvider       @relation(fields: [providerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  prices   CatalogPriceSnapshot[]
+
+  @@unique([source, sourceEndpointId])
+  @@index([modelId, isActive])
+  @@index([providerId, isActive])
+  @@map("catalog_endpoints")
+}
+
+model CatalogPriceSnapshot {
+  id                 String   @id @default(uuid()) @db.Uuid
+  endpointId         String   @map("endpoint_id") @db.Uuid
+  currency           String   @db.Char(3)
+  promptPrice        Decimal  @map("prompt_price") @db.Decimal(38, 24)
+  completionPrice    Decimal  @map("completion_price") @db.Decimal(38, 24)
+  requestPrice       Decimal  @default(0) @map("request_price") @db.Decimal(38, 24)
+  imagePrice         Decimal  @default(0) @map("image_price") @db.Decimal(38, 24)
+  sourceFetchedAt    DateTime @map("source_fetched_at") @db.Timestamptz(6)
+  sourcePayloadHash  String   @map("source_payload_hash") @db.Char(64)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  endpoint CatalogEndpoint @relation(fields: [endpointId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([endpointId, sourceFetchedAt])
+  @@map("catalog_price_snapshots")
+}
+
+model CatalogSyncRun {
+  id               String    @id @default(uuid()) @db.Uuid
+  source           String    @db.VarChar(32)
+  status           String    @db.VarChar(24)
+  startedAt        DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt      DateTime? @map("completed_at") @db.Timestamptz(6)
+  discoveredModels Int       @default(0) @map("discovered_models")
+  validatedModels  Int       @default(0) @map("validated_models")
+  activeModels     Int       @default(0) @map("active_models")
+  discoveredEndpoints Int    @default(0) @map("discovered_endpoints")
+  priceSnapshots   Int       @default(0) @map("price_snapshots")
+  errorCode        String?   @map("error_code") @db.VarChar(80)
+  safeSummary      Json?     @map("safe_summary") @db.JsonB
+
+  @@index([source, startedAt])
+  @@index([status, startedAt])
+  @@map("catalog_sync_runs")
+}
