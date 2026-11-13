@@ -3,6 +3,11 @@ packages:
   - "packages/*"
 
 # pnpm 12 requires explicit approval for dependency install scripts.
-# esbuild is required by Vite's build/test toolchain; do not blanket-allow all scripts.
+# esbuild is required by Vite's build/test toolchain.
+# BullMQ's msgpackr dependency optionally uses this versioned native string
+# extractor for MessagePack performance; its install hook only delegates
+# to node-gyp-build-optional-packages to select a platform prebuild.
+# Do not blanket-allow dependency install scripts.
 allowBuilds:
   esbuild: true
+  msgpackr-extract@3.0.7: true
