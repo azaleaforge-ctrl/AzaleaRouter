@@ -60,7 +60,7 @@ test("Supabase Auth errors are sanitized before reaching API clients", async () 
   );
 });
 
-test("signup rejects Supabase-obfuscated existing-user identities", async () => {
+test("signup preserves empty identities for the API to return a non-enumerating response", async () => {
   const client = new SupabaseAuthClient({
     url: "https://auth.example.test",
     anonKey: "publishable-test-key",
@@ -70,5 +70,7 @@ test("signup rejects Supabase-obfuscated existing-user identities", async () => 
     }),
   });
 
-  await assert.rejects(client.signUp(user.email, "long-test-password"), /Registration could not be completed/);
+  const result = await client.signUp(user.email, "long-test-password");
+  assert.deepEqual(result.user.identities, []);
+  assert.equal(result.session, null);
 });
