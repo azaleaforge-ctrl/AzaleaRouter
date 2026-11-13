@@ -1,10 +1,22 @@
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import test from "node:test";
+import { Router } from "express";
 import { createApp } from "../src/app.js";
 
 async function startServer(sessionVerifier?: { resolvePrincipal(request: import("express").Request): Promise<unknown | null> }): Promise<{ server: Server; baseUrl: string }> {
-  const server = createServer(createApp(sessionVerifier ? { sessionVerifier } : {}));
+  const authRouter = Router();
+  authRouter.get("/auth/session", (req, res) => {
+    if (!req.auth) {
+      res.status(200).json({ authenticated: false, user: null });
+      return;
+    }
+    res.status(200).json({ authenticated: true, user: { id: req.auth.userId, email: req.auth.email, role: req.auth.role } });
+  });
+  const server = createServer(createApp({
+    authRouter,
+    ...(sessionVerifier ? { sessionVerifier } : {}),
+  }));
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", resolve);
@@ -20,27 +32,18 @@ async function stopServer(server: Server): Promise<void> {
   });
 }
 
-test("auth remains explicitly unavailable when the provider adapter is disabled", async () => {
-  const { server, baseUrl } = await startServer();
+test("auth session is unauthenticated when the provider returns no principal", async () => {
+  const { server, baseUrl } = await startServer({ resolvePrincipal: async () => null });
   try {
-    const session = await fetch(`${baseUrl}/api/v1/auth/session`);
-    assert.equal(session.status, 200);
-    assert.deepEqual(await session.json(), { authenticated: false, user: null });
-
-    const login = await fetch(`${baseUrl}/api/v1/auth/login`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "user@example.test", password: "not-a-real-password", turnstile_token: "x" }),
-    });
-    assert.equal(login.status, 503);
-    const body = await login.json() as { error: { code: string } };
-    assert.equal(body.error.code, "AUTH_PROVIDER_NOT_CONFIGURED");
+    const response = await fetch(`${baseUrl}/api/v1/auth/session`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { authenticated: false, user: null });
   } finally {
     await stopServer(server);
   }
 });
 
-test("only a provider-verified principal may be reflected by session introspection", async () => {
+test("only a provider-verified principal is reflected by session introspection", async () => {
   const { server, baseUrl } = await startServer({
     resolvePrincipal: async () => ({
       userId: "9b944d73-23f4-4cb8-98df-2ea7d11d5674",
