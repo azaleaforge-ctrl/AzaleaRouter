@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { DatabaseClient } from "@azalea-router/database";
 import { WalletService } from "@azalea-router/billing";
 import { PaymentService } from "@azalea-router/billing";
-import { requireActiveAccount, requireAuthenticated } from "../middleware/authorization.js";
+import { requireActiveAccount } from "../middleware/authorization.js";
 import { requireCsrf } from "../middleware/csrf.js";
 import { HttpError } from "../lib/http-error.js";
 
