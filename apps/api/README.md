@@ -2,6 +2,18 @@
 
 Express 5 + TypeScript API skeleton for the AzaleaRouter modular monolith.
 
+## Local setup
+
+From the repository root:
+
+```powershell
+Copy-Item apps/api/.env.example apps/api/.env
+corepack pnpm install
+corepack pnpm --filter @azalea-router/api dev
+```
+
+The API listens on `127.0.0.1:4000` by default. The Node.js dev command loads `apps/api/.env` when present and restarts on source changes.
+
 ## Current scope
 - Zod environment validation.
 - Express application factory with injectable dependencies.
@@ -12,18 +24,7 @@ Express 5 + TypeScript API skeleton for the AzaleaRouter modular monolith.
 - OpenAPI 3.1 initial contract at `openapi/openapi.yaml`.
 - API unit/integration tests using Node's built-in test runner.
 
-## Local setup
-
-From the repository root:
-
-```bash
-corepack pnpm install
-corepack pnpm --filter @azalea-router/api dev
-```
-
-The API listens on `127.0.0.1:4000` by default.
-
-Run API checks:
+## API checks
 
 ```bash
 corepack pnpm --filter @azalea-router/api lint
