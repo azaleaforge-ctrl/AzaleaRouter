@@ -21,14 +21,19 @@ The API listens on 127.0.0.1:4000 by default. DATABASE_URL is read by the API an
 - Express application factory and liveness endpoint.
 - Database-backed readiness endpoint at GET /api/v1/health/ready; it returns 503 when a database is not configured or reachable.
 - PostgreSQL client through the shared @azalea-router/database package.
-- Structured JSON operational logs with an allowlist of safe fields.
+- Structured JSON request/error logs with a safe field allowlist and duration; OpenTelemetry API spans are emitted through a vendor-neutral instrumentation hook.
 - Graceful SIGINT/SIGTERM shutdown including database disconnection.
-- OpenAPI 3.1 initial contract at openapi/openapi.yaml.
+- OpenAPI 3.1 initial contract at openapi/openapi.yaml; Redocly spec lint is part of CI (`pnpm --filter @azalea-router/api openapi:lint`).
 - Vendor-neutral session-verifier boundary and optional session-resolution middleware.
 - GET /api/v1/auth/session session introspection.
 - Role/permission policy and resource-ownership helpers for user, support, admin, and super-admin.
 
 ## API checks
+
+```bash
+corepack pnpm --filter @azalea-router/api openapi:lint
+```
+
 
 ```bash
 corepack pnpm --filter @azalea-router/api lint
