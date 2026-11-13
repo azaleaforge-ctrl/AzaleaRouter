@@ -1,0 +1,6 @@
+extends:
+  - spec
+
+apis:
+  website:
+    root: ./openapi/openapi.yaml
