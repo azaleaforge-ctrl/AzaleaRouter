@@ -4,16 +4,14 @@ Node.js + TypeScript worker foundation using BullMQ 5 and Redis.
 
 ## Local setup
 
-1. Start a Redis-compatible service (Redis, Valkey or another compatible server).
-2. Copy `.env.example` to your local environment file and set `REDIS_URL`.
-3. From the repository root:
+1. Start the local Redis service from the repository root:
+   `docker compose -f infrastructure/compose.dev.yml up -d redis`
+2. Copy the example environment:
+   `Copy-Item apps/worker/.env.example apps/worker/.env`
+3. Start the worker:
+   `corepack pnpm --filter @azalea-router/worker dev`
 
-```bash
-corepack pnpm install
-corepack pnpm --filter @azalea-router/worker dev
-```
-
-The worker consumes the `azalea-router-background` queue by default. Its initial registered job is `system.health-check`; domain jobs are registered by later backend stages.
+The worker consumes the `azalea-router-background` queue by default. Its initial registered job is `system.health-check`; domain jobs are registered by later backend stages. The Node.js dev command loads `apps/worker/.env` when present.
 
 ## Reliability and safety
 
