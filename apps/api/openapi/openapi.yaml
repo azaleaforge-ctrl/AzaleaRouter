@@ -532,6 +532,569 @@ paths:
                     items:
                       $ref: "#/components/schemas/Provider"
 
+  /wallet:
+    get:
+      operationId: getWalletBalance
+      summary: Read current user's IDR wallet ledger balance and active reservations
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Wallet is present or has not been created yet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletResponse"
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+  /wallet/payment-intents:
+    post:
+      operationId: createWalletPaymentIntent
+      summary: Create an idempotent pending IDR top-up intent
+      security:
+        - cookieAuth: []
+        - csrfHeader: []
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [amount_idr]
+              properties:
+                amount_idr:
+                  type: string
+                  pattern: '^[1-9]\\d{0,37}  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: __Host-azlr_session
+      description: |
+        Opaque HttpOnly session cookie. Local HTTP development uses azlr_session;
+        production requires Secure and uses the __Host- prefix. Provider access
+        and refresh tokens remain encrypted in PostgreSQL and are never exposed.
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Must equal the readable azlr_csrf cookie; mutation routes also require an allowlisted Origin.
+  responses:
+    ErrorResponse:
+      description: Standard redacted error envelope
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [status, service, timestamp]
+      properties:
+        status:
+          const: ok
+        service:
+          const: azalea-router-api
+        timestamp:
+          type: string
+          format: date-time
+    ReadinessResponse:
+      type: object
+      additionalProperties: false
+      required: [status, dependencies, request_id]
+      properties:
+        status:
+          enum: [ready, not_ready]
+        dependencies:
+          type: object
+          additionalProperties: false
+          required: [database]
+          properties:
+            database:
+              enum: [ok, not_configured, unavailable]
+        request_id:
+          type: string
+
+    CatalogStatus:
+      type: object
+      required: [source, minimum_required_models, active_canonical_chat_models, ready_for_public_catalog, last_sync]
+      properties:
+        source:
+          const: openrouter
+        minimum_required_models:
+          const: 50
+        active_canonical_chat_models:
+          type: integer
+          minimum: 0
+        ready_for_public_catalog:
+          type: boolean
+        last_sync:
+          oneOf:
+            - $ref: "#/components/schemas/CatalogSyncRun"
+            - type: "null"
+    CatalogSyncRun:
+      type: object
+      required: [id, status, started_at, discovered_models, validated_models, active_models, discovered_endpoints, price_snapshots]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          enum: [running, succeeded, partial, failed]
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: [string, "null"]
+          format: date-time
+        discovered_models:
+          type: integer
+        validated_models:
+          type: integer
+        active_models:
+          type: integer
+        discovered_endpoints:
+          type: integer
+        price_snapshots:
+          type: integer
+        error_code:
+          type: [string, "null"]
+    ModelListResponse:
+      type: object
+      required: [data, page, catalog_ready, total_active_models]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Model"
+        page:
+          type: object
+          required: [limit, next_cursor]
+          properties:
+            limit:
+              type: integer
+            next_cursor:
+              type: [string, "null"]
+        catalog_ready:
+          type: boolean
+        total_active_models:
+          type: integer
+    Model:
+      type: object
+      required: [id, canonical_id, source_model_id, name, input_modalities, output_modalities, supported_parameters, endpoints, last_verified_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        canonical_id:
+          type: string
+        source_model_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: [string, "null"]
+        developer:
+          oneOf:
+            - $ref: "#/components/schemas/DeveloperIdentity"
+            - type: "null"
+        context_length:
+          type: [integer, "null"]
+        max_completion_tokens:
+          type: [integer, "null"]
+        input_modalities:
+          type: array
+          items:
+            type: string
+        output_modalities:
+          type: array
+          items:
+            type: string
+        supported_parameters:
+          type: array
+          items:
+            type: string
+        endpoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelEndpoint"
+        last_verified_at:
+          type: string
+          format: date-time
+    ModelEndpoint:
+      type: object
+      required: [id, provider, name, api_path, supported_parameters, source_fetched_at, pricing]
+      properties:
+        id:
+          type: string
+          format: uuid
+        provider:
+          $ref: "#/components/schemas/DeveloperIdentity"
+        name:
+          type: string
+        model_variant:
+          type: [string, "null"]
+        api_path:
+          type: string
+        context_length:
+          type: [integer, "null"]
+        max_completion_tokens:
+          type: [integer, "null"]
+        max_prompt_tokens:
+          type: [integer, "null"]
+        quantization:
+          type: [string, "null"]
+        supported_parameters:
+          type: array
+          items:
+            type: string
+        source_fetched_at:
+          type: string
+          format: date-time
+        pricing:
+          oneOf:
+            - $ref: "#/components/schemas/ModelPricing"
+            - type: "null"
+    ModelPricing:
+      type: object
+      required: [currency, prompt, completion, request, image, source_fetched_at]
+      properties:
+        currency:
+          const: USD
+        prompt:
+          type: string
+          pattern: '^\\d+(?:\\.\\d+)?$'
+        completion:
+          type: string
+          pattern: '^\\d+(?:\\.\\d+)?$'
+        request:
+          type: string
+        image:
+          type: string
+        source_fetched_at:
+          type: string
+          format: date-time
+    Developer:
+      type: object
+      required: [slug, name, active_models]
+      properties:
+        slug:
+          type: string
+        name:
+          type: string
+        active_models:
+          type: integer
+    Provider:
+      type: object
+      required: [slug, name, active_endpoints]
+      properties:
+        slug:
+          type: string
+        name:
+          type: string
+        active_endpoints:
+          type: integer
+    DeveloperIdentity:
+      type: object
+      required: [slug, name]
+      properties:
+        slug:
+          type: string
+        name:
+          type: string
+
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message, request_id, retryable]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            request_id:
+              type: string
+            retryable:
+              type: boolean
+    AcceptedResponse:
+      type: object
+      required: [accepted]
+      properties:
+        accepted:
+          const: true
+        message:
+          type: string
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password, terms_version, privacy_version, turnstile_token]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        terms_version:
+          type: string
+          maxLength: 64
+        privacy_version:
+          type: string
+          maxLength: 64
+        turnstile_token:
+          type: string
+          maxLength: 2048
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password, turnstile_token]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+          maxLength: 128
+        turnstile_token:
+          type: string
+          maxLength: 2048
+    VerifyEmailRequest:
+      type: object
+      additionalProperties: false
+      required: [token_hash]
+      properties:
+        token_hash:
+          type: string
+          minLength: 8
+          maxLength: 512
+    EmailChallengeRequest:
+      type: object
+      additionalProperties: false
+      required: [email, turnstile_token]
+      properties:
+        email:
+          type: string
+          format: email
+        turnstile_token:
+          type: string
+          maxLength: 2048
+    PasswordResetRequest:
+      type: object
+      additionalProperties: false
+      required: [token_hash, new_password]
+      properties:
+        token_hash:
+          type: string
+          minLength: 8
+          maxLength: 512
+        new_password:
+          type: string
+          minLength: 12
+          maxLength: 128
+    AuthSessionResponse:
+      type: object
+      required: [authenticated, user]
+      properties:
+        authenticated:
+          type: boolean
+        user:
+          oneOf:
+            - $ref: "#/components/schemas/PublicUser"
+            - type: "null"
+    AuthenticatedSessionResponse:
+      type: object
+      required: [authenticated, user]
+      properties:
+        authenticated:
+          const: true
+        user:
+          $ref: "#/components/schemas/PublicUser"
+        csrf_token:
+          type: string
+    PublicUser:
+      type: object
+      required: [id, email, role, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          enum: [user, support, admin, super_admin]
+        status:
+          enum: [pending_verification, active, suspended, deletion_pending, deleted]
+        email_verified:
+          type: boolean
+        profile:
+          oneOf:
+            - $ref: "#/components/schemas/Profile"
+            - type: "null"
+    MeResponse:
+      type: object
+      required: [user, preferences]
+      properties:
+        user:
+          $ref: "#/components/schemas/PublicUser"
+        preferences:
+          oneOf:
+            - $ref: "#/components/schemas/Preferences"
+            - type: "null"
+    ProfilePatch:
+      type: object
+      additionalProperties: false
+      properties:
+        display_name:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 80
+        locale:
+          type: string
+          minLength: 2
+          maxLength: 16
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 64
+    Profile:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        displayName:
+          type: [string, "null"]
+        locale:
+          type: string
+        timezone:
+          type: string
+    PreferencesPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        theme:
+          enum: [light, dark, system]
+        default_model_id:
+          type: [string, "null"]
+          maxLength: 255
+        notification_preferences:
+          type: object
+          additionalProperties:
+            type: boolean
+    Preferences:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        theme:
+          type: string
+        defaultModelId:
+          type: [string, "null"]
+        defaultRouting:
+          type: [object, "null"]
+        notificationPreferences:
+          type: [object, "null"]
+    ConsentRequest:
+      type: object
+      additionalProperties: false
+      required: [consent_type, document_version]
+      properties:
+        consent_type:
+          enum: [terms, privacy, marketing]
+        document_version:
+          type: string
+          maxLength: 64
+    Consent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        consentType:
+          type: string
+        documentVersion:
+          type: string
+        acceptedAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+
+      responses:
+        "202":
+          description: Pending payment intent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentIntentResponse"
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+  /payments/webhooks:
+    post:
+      operationId: receiveSignedPaymentWebhook
+      summary: Receive a raw-body, provider-signed payment webhook
+      security: []
+      parameters:
+        - in: header
+          name: X-Payment-Signature
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Verified webhook event processed or safely deduplicated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentWebhookResult"
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "422":
+          description: Signed event rejected because it does not match an active payment intent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentWebhookResult"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+
 components:
   securitySchemes:
     cookieAuth:
@@ -584,6 +1147,66 @@ components:
         request_id:
           type: string
 
+    WalletResponse:
+      type: object
+      required: [wallet]
+      properties:
+        wallet:
+          type: object
+          required: [currency, ledgerBalance, reservedBalance, availableBalance, status]
+          properties:
+            currency:
+              const: IDR
+            ledgerBalance:
+              type: string
+              pattern: '^\\d+$'
+            reservedBalance:
+              type: string
+              pattern: '^\\d+$'
+            availableBalance:
+              type: string
+              pattern: '^\\d+$'
+            status:
+              type: string
+    PaymentIntentResponse:
+      type: object
+      required: [payment_intent]
+      properties:
+        payment_intent:
+          type: object
+          required: [id, provider, provider_reference, amount_idr, currency, status, expires_at, checkout_url]
+          properties:
+            id:
+              type: string
+              format: uuid
+            provider:
+              type: string
+            provider_reference:
+              type: string
+            amount_idr:
+              type: string
+              pattern: '^\\d+$'
+            currency:
+              const: IDR
+            status:
+              enum: [pending, processing, paid, failed, expired, refunded]
+            expires_at:
+              type: string
+              format: date-time
+            checkout_url:
+              type: "null"
+    PaymentWebhookResult:
+      type: object
+      required: [accepted, duplicate, status, paymentIntentId]
+      properties:
+        accepted:
+          type: boolean
+        duplicate:
+          type: boolean
+        status:
+          enum: [processed, rejected, failed]
+        paymentIntentId:
+          type: [string, "null"]
     CatalogStatus:
       type: object
       required: [source, minimum_required_models, active_canonical_chat_models, ready_for_public_catalog, last_sync]
