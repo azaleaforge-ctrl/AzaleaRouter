@@ -1,4 +1,9 @@
 import type { DatabaseClient } from "@azalea-router/database";
+
+type WalletTransactionClient = Pick<
+  DatabaseClient,
+  "$queryRaw" | "walletAccount" | "ledgerAccount" | "ledgerTransaction" | "ledgerEntry" | "walletReservation"
+>;
 import { parseIdrAmount, toIdrAmount } from "./money.js";
 
 export interface WalletBalance {
@@ -29,7 +34,7 @@ function decimalString(value: { toString(): string } | string): string {
   return typeof value === "string" ? value : value.toString();
 }
 
-async function lockWalletAccount(tx: DatabaseClient, userId: string): Promise<{
+async function lockWalletAccount(tx: WalletTransactionClient, userId: string): Promise<{
   id: string;
   ledgerAccountId: string;
   currency: string;
@@ -42,7 +47,7 @@ async function lockWalletAccount(tx: DatabaseClient, userId: string): Promise<{
   });
 }
 
-async function readBalanceRows(tx: DatabaseClient, ledgerAccountId: string, walletAccountId: string, now: Date): Promise<BalanceRows> {
+async function readBalanceRows(tx: WalletTransactionClient, ledgerAccountId: string, walletAccountId: string, now: Date): Promise<BalanceRows> {
   const rows = await tx.$queryRaw<Array<BalanceRows>>`
     SELECT
       COALESCE(SUM(CASE WHEN entry."direction" = 'credit' THEN entry."amount" ELSE 0 END), 0)::text AS credits,
