@@ -116,6 +116,9 @@ export class CatalogSyncService {
     try {
       const sourceModels = await this.source.listChatModels();
       discoveredModels = sourceModels.length;
+      if (sourceModels.length === 0) {
+        throw new CatalogSourceError("CATALOG_SOURCE_EMPTY", "The upstream model catalog returned no eligible chat models.", true);
+      }
       const maximumModels = this.options.maximumModels ?? 5000;
       if (sourceModels.length > maximumModels) {
         throw new CatalogSourceError("CATALOG_SIZE_LIMIT", "Source model list exceeded the configured safe limit.", false);
