@@ -304,6 +304,7 @@ model CatalogPriceSnapshot {
 
   @@index([endpointId, sourceFetchedAt])
   @@map("catalog_price_snapshots")
+  pricingPolicies PricingPolicySnapshot[]
 }
 
 model CatalogSyncRun {
@@ -489,6 +490,7 @@ model PricingPolicySnapshot {
   maximumStaleSeconds   Int      @map("maximum_stale_seconds")
   createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  catalogPriceSnapshot CatalogPriceSnapshot @relation(fields: [catalogPriceSnapshotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   fxRateSnapshot FxRateSnapshot @relation(fields: [fxRateSnapshotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@index([catalogPriceSnapshotId, createdAt])
