@@ -72,7 +72,11 @@ function modelInclude() {
   return {
     developer: { select: { slug: true, displayName: true } },
     endpoints: {
-      where: { isActive: true, apiPath: "/api/v1/chat/completions" },
+      where: {
+        isActive: true,
+        apiPath: "/api/v1/chat/completions",
+        prices: { some: { currency: "USD" } },
+      },
       include: {
         provider: { select: { slug: true, displayName: true } },
         prices: {
@@ -170,13 +174,29 @@ export function createCatalogRouter(database: DatabaseClient): Router {
       });
     }
 
-    const rows = await database.catalogModel.findMany({
-      where: { AND: clauses },
-      take: query.limit + 1,
-      ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
-      orderBy: [{ name: "asc" }, { id: "asc" }],
-      include: modelInclude(),
-    });
+    const where = { AND: clauses };
+    const [rows, totalActive] = await Promise.all([
+      database.catalogModel.findMany({
+        where,
+        take: query.limit + 1,
+        ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+        orderBy: [{ name: "asc" }, { id: "asc" }],
+        include: modelInclude(),
+      }),
+      database.catalogModel.count({
+        where: {
+          source: "openrouter",
+          isActive: true,
+          endpoints: {
+            some: {
+              isActive: true,
+              apiPath: "/api/v1/chat/completions",
+              prices: { some: { currency: "USD" } },
+            },
+          },
+        },
+      }),
+    ]);
 
     const hasMore = rows.length > query.limit;
     const items = rows.slice(0, query.limit);
@@ -203,7 +223,8 @@ export function createCatalogRouter(database: DatabaseClient): Router {
         limit: query.limit,
         next_cursor: hasMore ? items[items.length - 1]?.id ?? null : null,
       },
-      catalog_ready: activeCatalogCountEstimate(rows) >= 50,
+      total_active_models: totalActive,
+      catalog_ready: totalActive >= 50,
     });
   });
 
@@ -259,7 +280,11 @@ export function createCatalogRouter(database: DatabaseClient): Router {
       },
       include: {
         endpoints: {
-          where: { isActive: true, apiPath: "/api/v1/chat/completions" },
+          where: {
+            isActive: true,
+            apiPath: "/api/v1/chat/completions",
+            prices: { some: { currency: "USD" } },
+          },
           include: {
             provider: { select: { slug: true, displayName: true } },
             prices: { orderBy: { sourceFetchedAt: "desc" }, take: 1 },
@@ -277,7 +302,21 @@ export function createCatalogRouter(database: DatabaseClient): Router {
 
   router.get("/developers", async (_req, res) => {
     const developers = await database.catalogDeveloper.findMany({
-      where: { source: "openrouter", models: { some: { isActive: true } } },
+      where: {
+        source: "openrouter",
+        models: {
+          some: {
+            isActive: true,
+            endpoints: {
+              some: {
+                isActive: true,
+                apiPath: "/api/v1/chat/completions",
+                prices: { some: { currency: "USD" } },
+              },
+            },
+          },
+        },
+      },
       orderBy: { displayName: "asc" },
       select: {
         slug: true,
@@ -296,7 +335,17 @@ export function createCatalogRouter(database: DatabaseClient): Router {
 
   router.get("/providers", async (_req, res) => {
     const providers = await database.catalogProvider.findMany({
-      where: { source: "openrouter", endpoints: { some: { isActive: true } } },
+      where: {
+        source: "openrouter",
+        endpoints: {
+          some: {
+            isActive: true,
+            apiPath: "/api/v1/chat/completions",
+            prices: { some: { currency: "USD" } },
+            model: { isActive: true },
+          },
+        },
+      },
       orderBy: { displayName: "asc" },
       select: {
         slug: true,
@@ -316,8 +365,3 @@ export function createCatalogRouter(database: DatabaseClient): Router {
   return router;
 }
 
-// List response pages are not a readiness decision. The authoritative readiness
-// count is /catalog/status and is always computed against all active persisted rows.
-function activeCatalogCountEstimate(rows: Array<{ isActive: boolean }>): number {
-  return rows.filter((row) => row.isActive).length;
-}
