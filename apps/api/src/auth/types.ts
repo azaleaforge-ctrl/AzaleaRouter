@@ -26,6 +26,7 @@ export const authenticatedPrincipalSchema = z.object({
 export type AuthenticatedPrincipal = z.infer<typeof authenticatedPrincipalSchema>;
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       auth?: AuthenticatedPrincipal;
