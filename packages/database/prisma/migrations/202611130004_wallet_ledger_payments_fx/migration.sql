@@ -15,7 +15,6 @@ CREATE TABLE "ledger_accounts" (
   CONSTRAINT "ledger_accounts_currency_idr" CHECK ("currency" = 'IDR')
 );
 CREATE UNIQUE INDEX "ledger_accounts_code_key" ON "ledger_accounts"("code");
-CREATE UNIQUE INDEX "ledger_accounts_owner_user_id_key" ON "ledger_accounts"("owner_user_id") WHERE "owner_user_id" IS NOT NULL;
 ALTER TABLE "ledger_accounts" ADD CONSTRAINT "ledger_accounts_owner_user_id_fkey"
   FOREIGN KEY ("owner_user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
@@ -98,7 +97,7 @@ CREATE TABLE "wallet_reservations" (
   CONSTRAINT "wallet_reservations_status_check" CHECK ("status" IN ('reserved','settled','released','expired'))
 );
 CREATE UNIQUE INDEX "wallet_reservations_idempotency_key_key" ON "wallet_reservations"("idempotency_key");
-CREATE UNIQUE INDEX "wallet_reservations_ledger_transaction_id_key" ON "wallet_reservations"("ledger_transaction_id") WHERE "ledger_transaction_id" IS NOT NULL;
+CREATE UNIQUE INDEX "wallet_reservations_ledger_transaction_id_key" ON "wallet_reservations"("ledger_transaction_id");
 CREATE INDEX "wallet_reservations_wallet_status_expiry_idx" ON "wallet_reservations"("wallet_account_id","status","expires_at");
 CREATE INDEX "wallet_reservations_user_created_idx" ON "wallet_reservations"("user_id","created_at");
 ALTER TABLE "wallet_reservations" ADD CONSTRAINT "wallet_reservations_user_fkey"
@@ -126,7 +125,7 @@ CREATE TABLE "payment_intents" (
   CONSTRAINT "payment_intents_currency_idr" CHECK ("currency" = 'IDR'),
   CONSTRAINT "payment_intents_status_check" CHECK ("status" IN ('pending','processing','paid','failed','expired','refunded'))
 );
-CREATE UNIQUE INDEX "payment_intents_provider_reference_key" ON "payment_intents"("provider_reference") WHERE "provider_reference" IS NOT NULL;
+CREATE UNIQUE INDEX "payment_intents_provider_reference_key" ON "payment_intents"("provider_reference");
 CREATE UNIQUE INDEX "payment_intents_idempotency_key_key" ON "payment_intents"("idempotency_key");
 CREATE INDEX "payment_intents_user_created_idx" ON "payment_intents"("user_id","created_at");
 CREATE INDEX "payment_intents_status_expiry_idx" ON "payment_intents"("status","expires_at");
