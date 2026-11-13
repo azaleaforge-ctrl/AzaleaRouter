@@ -8,10 +8,9 @@ import { z } from "zod";
 
 const messageSchema = z.object({
   role: z.enum(["system", "developer", "user", "assistant", "tool"]),
-  content: z.union([
-    z.string().max(1_000_000),
-    z.array(z.object({ type: z.string().min(1).max(64) }).passthrough()).max(256),
-  ]),
+  // BE-5 initially supports text-only requests. Multimodal payloads are rejected
+  // rather than forwarded to endpoints whose input capability has not been verified.
+  content: z.string().max(1_000_000),
   name: z.string().max(128).optional(),
   tool_call_id: z.string().max(128).optional(),
 }).strict();
@@ -80,6 +79,13 @@ export function createGatewayRouter(options: GatewayRouterOptions): Router {
     }
     const endpoint = model.endpoints[0];
     if (!endpoint) throw new HttpError(503, "MODEL_ENDPOINT_UNAVAILABLE", "No priced endpoint is currently available.");
+    if (
+      input.max_tokens !== undefined &&
+      endpoint.maxCompletionTokens !== null &&
+      input.max_tokens > endpoint.maxCompletionTokens
+    ) {
+      throw new HttpError(400, "MAX_TOKENS_EXCEEDED", "max_tokens exceeds the selected endpoint's completion limit.");
+    }
 
     // BE-6 adds request reservation, spend cap enforcement, usage persistence and final settlement.
     // A gateway request must not reach an upstream provider until that financial boundary is active.
