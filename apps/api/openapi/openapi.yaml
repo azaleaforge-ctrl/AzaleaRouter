@@ -64,3 +64,44 @@ components:
               type: string
             retryable:
               type: boolean
+
+  /health/ready:
+    get:
+      operationId: getReadiness
+      summary: Readiness check including required database connectivity
+      security: []
+      responses:
+        "200":
+          description: API and configured database are ready
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, dependencies, request_id]
+                properties:
+                  status:
+                    const: ready
+                  dependencies:
+                    type: object
+                    properties:
+                      database:
+                        const: ok
+                  request_id:
+                    type: string
+        "503":
+          description: A required dependency is not configured or unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, dependencies, request_id]
+                properties:
+                  status:
+                    const: not_ready
+                  dependencies:
+                    type: object
+                    properties:
+                      database:
+                        enum: [not_configured, unavailable]
+                  request_id:
+                    type: string
