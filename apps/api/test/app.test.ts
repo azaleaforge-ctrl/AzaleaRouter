@@ -67,12 +67,12 @@ test("unsafe caller request IDs are replaced", async () => {
 
   try {
     const response = await fetch(`${baseUrl}/api/v1/health`, {
-      headers: { "x-request-id": "bad request\nwith newline" },
+      headers: { "x-request-id": "bad value" },
     });
 
     const requestId = response.headers.get("x-request-id") ?? "";
     assert.equal(response.status, 200);
-    assert.notEqual(requestId, "bad request\nwith newline");
+    assert.notEqual(requestId, "bad value");
     assert.match(requestId, /^[0-9a-f-]{36}$/i);
   } finally {
     await closeTestServer(server);
