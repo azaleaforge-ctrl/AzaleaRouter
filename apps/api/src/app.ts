@@ -6,6 +6,8 @@ import { errorHandler } from "./middleware/error-handler.js";
 import { requestIdMiddleware } from "./middleware/request-id.js";
 import { requestObservabilityMiddleware } from "./middleware/request-observability.js";
 import { createSessionResolver } from "./middleware/session-resolver.js";
+import { createCorsMiddleware } from "./middleware/cors.js";
+import { env } from "./config/env.js";
 import { authUnavailableRouter } from "./routes/auth-unavailable.js";
 import { healthRouter } from "./routes/health.js";
 
@@ -19,6 +21,7 @@ export function createApp(dependencies: AppDependencies = {}) {
   const app = express();
   app.disable("x-powered-by");
   app.use(requestIdMiddleware);
+  app.use(createCorsMiddleware({ allowedOrigin: env.WEB_ORIGIN }));
   app.use(requestObservabilityMiddleware);
   app.use(express.json({ limit: "1mb", strict: true }));
   app.use("/api/v1", createSessionResolver(dependencies.sessionVerifier));
