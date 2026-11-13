@@ -10,3 +10,8 @@ export {
 export type { IdRAmount, UsageCostInput, UsageCostResult } from "./money.js";
 export { WalletService } from "./wallet-service.js";
 export type { WalletBalance, WalletReservationResult } from "./wallet-service.js";
+
+export { PaymentService } from "./payment-service.js";
+export type { PaymentIntentResult, WebhookProcessingResult } from "./payment-service.js";
+export { LocalSandboxPaymentAdapter } from "./payment-provider.js";
+export type { PaymentProviderAdapter, VerifiedPaymentEvent } from "./payment-provider.js";
