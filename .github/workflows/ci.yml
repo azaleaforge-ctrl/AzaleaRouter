@@ -115,6 +115,9 @@ jobs:
       - name: API lint
         run: pnpm --filter @azalea-router/api lint
 
+      - name: Validate OpenAPI 3.1 contract
+        run: pnpm --filter @azalea-router/api openapi:lint
+
       - name: API typecheck
         run: pnpm --filter @azalea-router/api typecheck
 
