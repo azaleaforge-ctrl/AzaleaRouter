@@ -85,9 +85,14 @@ export class TurnstileVerifier {
           expiresAt: new Date(this.now() + 300_000),
         },
       });
-    } catch {
-      // A unique token hash makes successful validation single-use across API replicas.
-      throw new HttpError(400, "TURNSTILE_REPLAYED", "Anti-bot challenge has already been used.");
+    } catch (error) {
+      const code = error && typeof error === "object" && "code" in error
+        ? String((error as { code?: unknown }).code)
+        : "";
+      if (code === "P2002") {
+        throw new HttpError(400, "TURNSTILE_REPLAYED", "Anti-bot challenge has already been used.");
+      }
+      throw new HttpError(503, "TURNSTILE_STORAGE_UNAVAILABLE", "Anti-bot verification is temporarily unavailable.");
     }
   }
 }
