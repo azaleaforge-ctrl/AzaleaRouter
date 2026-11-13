@@ -128,35 +128,48 @@ export function createAuthRouter(dependencies: AuthRouterDependencies): Router {
       dependencies.emailRedirectTo,
     );
 
-    const user = await dependencies.database.user.upsert({
-      where: { authSubjectId: providerResult.user.id },
-      update: {},
-      create: {
-        authSubjectId: providerResult.user.id,
-        emailNormalized: input.email,
-        status: providerResult.user.email_confirmed_at || providerResult.user.confirmed_at
-          ? "ACTIVE"
-          : "PENDING_VERIFICATION",
-        emailVerifiedAt: providerResult.user.email_confirmed_at || providerResult.user.confirmed_at
-          ? new Date(providerResult.user.email_confirmed_at ?? providerResult.user.confirmed_at!)
-          : null,
-        profile: {
-          create: {
-            displayName: input.display_name ?? null,
-            locale: "id-ID",
-            timezone: "Asia/Jakarta",
+    let user: Awaited<ReturnType<typeof dependencies.database.user.create>>;
+    try {
+      user = await dependencies.database.user.create({
+        data: {
+          authSubjectId: providerResult.user.id,
+          emailNormalized: input.email,
+          status: providerResult.user.email_confirmed_at || providerResult.user.confirmed_at
+            ? "ACTIVE"
+            : "PENDING_VERIFICATION",
+          emailVerifiedAt: providerResult.user.email_confirmed_at || providerResult.user.confirmed_at
+            ? new Date(providerResult.user.email_confirmed_at ?? providerResult.user.confirmed_at!)
+            : null,
+          profile: {
+            create: {
+              displayName: input.display_name ?? null,
+              locale: "id-ID",
+              timezone: "Asia/Jakarta",
+            },
+          },
+          preferences: { create: {} },
+          consents: {
+            create: [
+              { consentType: "terms", documentVersion: input.terms_version, source: "website" },
+              { consentType: "privacy", documentVersion: input.privacy_version, source: "website" },
+            ],
           },
         },
-        preferences: { create: {} },
-        consents: {
-          create: [
-            { consentType: "terms", documentVersion: input.terms_version, source: "website" },
-            { consentType: "privacy", documentVersion: input.privacy_version, source: "website" },
-          ],
-        },
-      },
-      include: { profile: true },
-    });
+        include: { profile: true },
+      });
+    } catch (error) {
+      const code = error && typeof error === "object" && "code" in error
+        ? String((error as { code?: unknown }).code)
+        : "";
+      if (code !== "P2002") throw error;
+      // Do not disclose whether the email or provider identity already exists.
+      res.status(202).json({
+        accepted: true,
+        email_verification_required: true,
+        message: "If the address can be registered, an email verification message will be sent.",
+      });
+      return;
+    }
 
     if (providerResult.session && user.status === "ACTIVE") {
       await dependencies.sessions.createSession(user.id, providerResult.session, res);
