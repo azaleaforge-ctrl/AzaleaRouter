@@ -63,3 +63,14 @@ PostgreSQL + Prisma ORM 7.10.1 is the local/test baseline. The database package 
 - `GET /api/v1/developers` and `GET /api/v1/providers` — developers and active endpoint providers.
 
 Only source-verified endpoints with a USD price snapshot are returned. Catalog readiness requires 50 distinct active canonical chat-capable models; the API never fills missing entries with demo data. OpenRouter metadata sync is disabled by default. See `packages/catalog/README.md` and `docs/backend/IMPLEMENTATION-STATUS.md`.
+
+
+## Model catalog API (BE-3)
+
+- GET /api/v1/catalog/status — source-backed readiness and last sync.
+- GET /api/v1/models — cursor-paginated canonical chat models with USD price snapshots.
+- GET /api/v1/models/:modelId — canonical model details and eligible endpoints.
+- GET /api/v1/models/:modelId/endpoints — provider endpoint choices.
+- GET /api/v1/developers and GET /api/v1/providers — active catalog dimensions.
+
+Only source-verified endpoints with an immutable USD price snapshot are returned. The public catalog readiness threshold is 50 distinct active canonical chat models; no alias/demo records or guessed prices are inserted. Metadata sync is disabled by default and must be explicitly enabled/approved in the worker environment.
