@@ -1,6 +1,7 @@
 import type { ErrorRequestHandler } from "express";
 import { env } from "../config/env.js";
 import { HttpError } from "../lib/http-error.js";
+import { logger } from "../lib/logger.js";
 
 export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
   const known = error instanceof HttpError;
@@ -9,8 +10,10 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
   const message = known && statusCode < 500 ? error.message : "An unexpected error occurred.";
 
   if (env.NODE_ENV !== "test") {
-    console[statusCode >= 500 ? "error" : "warn"]({
-      event: "http.request.error", requestId: req.requestId, statusCode, code,
+    logger[statusCode >= 500 ? "error" : "warn"]("http.request.error", {
+      requestId: req.requestId,
+      statusCode,
+      code,
     });
   }
 
