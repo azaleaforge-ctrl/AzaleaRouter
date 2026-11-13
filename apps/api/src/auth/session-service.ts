@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import type { Request, Response } from "express";
 import type { DatabaseClient } from "@azalea-router/database";
 import type { AuthenticatedPrincipal } from "./types.js";
@@ -27,6 +26,7 @@ interface StoredSession {
   revokedAt: Date | null;
   user: {
     id: string;
+    authSubjectId: string;
     emailNormalized: string;
     emailVerifiedAt: Date | null;
     role: "USER" | "SUPPORT" | "ADMIN" | "SUPER_ADMIN";
