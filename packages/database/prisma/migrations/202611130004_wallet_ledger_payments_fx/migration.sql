@@ -312,15 +312,21 @@ CREATE TRIGGER "wallet_reservations_no_delete"
 CREATE FUNCTION "guard_payment_intent_transition"() RETURNS trigger AS $$
 BEGIN
   IF OLD."id" <> NEW."id" OR OLD."user_id" <> NEW."user_id"
+     OR OLD."provider" <> NEW."provider"
      OR OLD."idempotency_key" <> NEW."idempotency_key"
-     OR OLD."amount" <> NEW."amount" OR OLD."currency" <> NEW."currency" THEN
-    RAISE EXCEPTION 'payment intent identity and amount are immutable';
+     OR OLD."amount" <> NEW."amount" OR OLD."currency" <> NEW."currency"
+     OR OLD."expires_at" <> NEW."expires_at" THEN
+    RAISE EXCEPTION 'payment intent identity, provider, amount and expiry are immutable';
+  END IF;
+  IF OLD."provider_reference" IS NOT NULL
+     AND OLD."provider_reference" IS DISTINCT FROM NEW."provider_reference" THEN
+    RAISE EXCEPTION 'payment provider reference can only be assigned once';
   END IF;
   IF OLD."status" IN ('paid','refunded','failed','expired') THEN
     RAISE EXCEPTION 'terminal payment intent is immutable';
   END IF;
   IF NOT (
-    (OLD."status" = 'pending' AND NEW."status" IN ('processing','paid','failed','expired')) OR
+    (OLD."status" = 'pending' AND NEW."status" IN ('pending','processing','paid','failed','expired')) OR
     (OLD."status" = 'processing' AND NEW."status" IN ('paid','failed','expired','refunded'))
   ) THEN
     RAISE EXCEPTION 'invalid payment intent transition';
