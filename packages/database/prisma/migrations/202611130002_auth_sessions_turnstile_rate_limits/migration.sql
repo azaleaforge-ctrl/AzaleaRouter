@@ -66,6 +66,11 @@ BEGIN
      OR NEW."created_at" <> OLD."created_at" THEN
     RAISE EXCEPTION 'auth session identity columns are immutable';
   END IF;
+  -- Revocation tombstones must not retain usable provider credentials.
+  IF NEW."revoked_at" IS NOT NULL
+     AND (NEW."encrypted_access_token" <> '' OR NEW."encrypted_refresh_token" <> '') THEN
+    RAISE EXCEPTION 'revoked auth session token ciphertext must be cleared';
+  END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
