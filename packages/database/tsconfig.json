@@ -11,8 +11,15 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "declaration": true
   },
-  "include": ["src/**/*.ts", "generated/**/*.ts"],
-  "exclude": ["dist", "node_modules"]
+  "include": [
+    "src/**/*.ts",
+    "generated/**/*.ts"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules"
+  ]
 }
