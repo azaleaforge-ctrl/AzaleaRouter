@@ -18,7 +18,8 @@
     "db:migrate:status": "prisma migrate status --config prisma7.config.ts",
     "typecheck": "pnpm db:generate && tsc --noEmit -p tsconfig.json",
     "build": "pnpm db:generate && tsc -p tsconfig.json",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test test/*.test.ts",
+    "lint": "eslint src test"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",
