@@ -7,6 +7,7 @@ Express 5 + TypeScript API skeleton for the AzaleaRouter modular monolith.
 - Express application factory with injectable dependencies.
 - Request correlation ID middleware and safe JSON error envelope.
 - Basic `GET /api/v1/health` endpoint.
+- Graceful SIGINT/SIGTERM shutdown.
 - Vendor-neutral session-verifier boundary and optional session-resolution middleware.
 - `GET /api/v1/auth/session` session introspection.
 - Role/permission policy and resource-ownership helpers for user, support, admin, and super-admin.
