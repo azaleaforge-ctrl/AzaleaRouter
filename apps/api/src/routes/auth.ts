@@ -128,6 +128,17 @@ export function createAuthRouter(dependencies: AuthRouterDependencies): Router {
       dependencies.emailRedirectTo,
     );
 
+    // Supabase deliberately returns an empty identities array for an already
+    // registered address in some configurations. Keep the response generic.
+    if (providerResult.user.identities && providerResult.user.identities.length === 0) {
+      res.status(202).json({
+        accepted: true,
+        email_verification_required: true,
+        message: "If the address can be registered, an email verification message will be sent.",
+      });
+      return;
+    }
+
     let user: Awaited<ReturnType<typeof dependencies.database.user.create>>;
     try {
       user = await dependencies.database.user.create({
@@ -216,12 +227,22 @@ export function createAuthRouter(dependencies: AuthRouterDependencies): Router {
       throw new HttpError(400, "EMAIL_VERIFICATION_FAILED", "Email verification could not be completed.");
     }
 
-    const user = await dependencies.database.user.update({
-      where: { authSubjectId: tokens.user.id },
+    const verified = await dependencies.database.user.updateMany({
+      where: {
+        authSubjectId: tokens.user.id,
+        status: "PENDING_VERIFICATION",
+        deletedAt: null,
+      },
       data: {
         emailVerifiedAt: new Date(tokens.user.email_confirmed_at ?? tokens.user.confirmed_at!),
         status: "ACTIVE",
       },
+    });
+    if (verified.count !== 1) {
+      throw new HttpError(400, "EMAIL_VERIFICATION_FAILED", "Email verification could not be completed.");
+    }
+    const user = await dependencies.database.user.findUniqueOrThrow({
+      where: { authSubjectId: tokens.user.id },
     });
     const session = await dependencies.sessions.createSession(user.id, tokens, res);
     res.status(200).json({
@@ -254,14 +275,20 @@ export function createAuthRouter(dependencies: AuthRouterDependencies): Router {
     const input = passwordResetSchema.parse(req.body);
     await dependencies.rateLimiter.consume("password-reset-verify", clientAddress(req));
     const tokens = await dependencies.provider.verifyEmailToken(input.token_hash, "recovery");
+    const existing = await dependencies.database.user.findUnique({
+      where: { authSubjectId: tokens.user.id },
+    });
+    if (!existing || existing.deletedAt || !["ACTIVE", "PENDING_VERIFICATION"].includes(existing.status)) {
+      throw new HttpError(403, "ACCOUNT_NOT_ACTIVE", "This account cannot reset its password.");
+    }
     await dependencies.provider.updatePassword(tokens.access_token, input.new_password);
     const user = await dependencies.database.user.update({
-      where: { authSubjectId: tokens.user.id },
+      where: { id: existing.id },
       data: {
-        emailVerifiedAt: tokens.user.email_confirmed_at || tokens.user.confirmed_at
-          ? new Date(tokens.user.email_confirmed_at ?? tokens.user.confirmed_at!)
-          : undefined,
-        status: "ACTIVE",
+        ...(tokens.user.email_confirmed_at || tokens.user.confirmed_at
+          ? { emailVerifiedAt: new Date(tokens.user.email_confirmed_at ?? tokens.user.confirmed_at!) }
+          : {}),
+        ...(existing.status === "PENDING_VERIFICATION" ? { status: "ACTIVE" as const } : {}),
       },
     });
     const session = await dependencies.sessions.createSession(user.id, tokens, res);
