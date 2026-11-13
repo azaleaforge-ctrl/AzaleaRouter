@@ -52,3 +52,14 @@ corepack pnpm --filter @azalea-router/database db:migrate:deploy
 ## Persistence and deployment
 
 PostgreSQL + Prisma ORM 7.10.1 is the local/test baseline. The database package uses migrations, not `db push`. No hosted database provider, production region, production credentials, backup/PITR policy, payment merchant, upstream gateway approval or live traffic is selected. D-05 is a legal paid-launch blocker; D-04 and D-10 also remain open.
+
+
+## Model catalog API (BE-3)
+
+- `GET /api/v1/catalog/status` — verified active canonical chat-model count and last sync result.
+- `GET /api/v1/models` — cursor-paginated active models with source-backed endpoint USD pricing.
+- `GET /api/v1/models/:modelId` — canonical model details and verified endpoints.
+- `GET /api/v1/models/:modelId/endpoints` — endpoint/provider choices for a canonical model.
+- `GET /api/v1/developers` and `GET /api/v1/providers` — developers and active endpoint providers.
+
+Only source-verified endpoints with a USD price snapshot are returned. Catalog readiness requires 50 distinct active canonical chat-capable models; the API never fills missing entries with demo data. OpenRouter metadata sync is disabled by default. See `packages/catalog/README.md` and `docs/backend/IMPLEMENTATION-STATUS.md`.
