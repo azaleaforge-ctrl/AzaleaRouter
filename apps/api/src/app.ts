@@ -18,6 +18,7 @@ export interface AppDependencies {
   sessionVerifier?: SessionVerifier;
   billingRouter?: Router;
   apiKeyRouter?: Router;
+  gatewayRouter?: Router;
 }
 
 export function createApp(dependencies: AppDependencies = {}) {
@@ -38,6 +39,9 @@ export function createApp(dependencies: AppDependencies = {}) {
 
   if (dependencies.apiKeyRouter) {
     app.use("/api/v1", dependencies.apiKeyRouter);
+  }
+  if (dependencies.gatewayRouter) {
+    app.use("/v1", dependencies.gatewayRouter);
   }
 
   if (dependencies.database) {
