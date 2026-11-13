@@ -19,6 +19,14 @@ if (queue) {
       repeat: { every: 60 * 60 * 1000 },
     },
   );
+  await queue.add(
+    "payments.cleanup-expired",
+    {},
+    {
+      jobId: "payments-cleanup-expired-five-minutes",
+      repeat: { every: 5 * 60 * 1000 },
+    },
+  );
 }
 
 const catalogSyncHandler = database && env.CATALOG_SYNC_ENABLED
