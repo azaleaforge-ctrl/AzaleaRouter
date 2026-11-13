@@ -1,5 +1,4 @@
 import type { Request } from "express";
-import type { AuthenticatedPrincipal } from "./types.js";
 
 /**
  * Vendor-neutral boundary for resolving a web session.
@@ -8,7 +7,10 @@ import type { AuthenticatedPrincipal } from "./types.js";
  * identity authority. They must not trust decoded JWT claims without verification.
  * The adapter owns credential extraction so cookie vs bearer-session decisions
  * do not leak into route handlers.
+ *
+ * Return unknown so the API validates the adapter output at runtime before it
+ * becomes an authenticated principal.
  */
 export interface SessionVerifier {
-  resolvePrincipal(request: Request): Promise<AuthenticatedPrincipal | null>;
+  resolvePrincipal(request: Request): Promise<unknown | null>;
 }
