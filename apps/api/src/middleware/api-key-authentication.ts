@@ -1,3 +1,4 @@
+import "../auth/api-key-types.js";
 import type { RequestHandler } from "express";
 import type { ApiKeyService } from "../auth/api-key-service.js";
 import { HttpError } from "../lib/http-error.js";
