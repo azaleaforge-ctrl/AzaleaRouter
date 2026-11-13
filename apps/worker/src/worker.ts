@@ -1,24 +1,26 @@
 import { env } from "./config/env.js";
 import { jobHandlers } from "./handlers/index.js";
-import { logWorkerEvent } from "./lib/logger.js";
+import { logWorkerEvent, type SafeWorkerLogFields } from "./lib/logger.js";
 import { createBackgroundWorker } from "./worker-runtime.js";
 
 const worker = createBackgroundWorker({ handlers: jobHandlers });
 
 worker.on("completed", (job) => {
-  logWorkerEvent("info", "worker.job.completed", {
+  const fields: SafeWorkerLogFields = {
     queueName: env.WORKER_QUEUE_NAME,
     jobName: job.name,
-    jobId: job.id,
-  });
+  };
+  if (job.id !== undefined) fields.jobId = job.id;
+  logWorkerEvent("info", "worker.job.completed", fields);
 });
 
 worker.on("failed", (job) => {
-  logWorkerEvent("warn", "worker.job.failed", {
-    queueName: env.WORKER_QUEUE_NAME,
-    jobName: job?.name,
-    jobId: job?.id,
-  });
+  const fields: SafeWorkerLogFields = { queueName: env.WORKER_QUEUE_NAME };
+  if (job) {
+    fields.jobName = job.name;
+    if (job.id !== undefined) fields.jobId = job.id;
+  }
+  logWorkerEvent("warn", "worker.job.failed", fields);
 });
 
 worker.on("error", () => {
