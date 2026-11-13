@@ -1,7 +1,7 @@
 import { Router, type RequestHandler } from "express";
 import { z } from "zod";
 import type { DatabaseClient } from "@azalea-router/database";
-import { requireAuthenticated } from "../middleware/authorization.js";
+import { requireActiveAccount, requireAuthenticated } from "../middleware/authorization.js";
 import { requireCsrf } from "../middleware/csrf.js";
 import { HttpError } from "../lib/http-error.js";
 import type { AuthRateLimiter } from "../auth/auth-rate-limiter.js";
@@ -276,7 +276,7 @@ export function createAuthRouter(dependencies: AuthRouterDependencies): Router {
     res.status(204).end();
   });
 
-  router.get("/me", requireAuthenticated(), async (req, res) => {
+  router.get("/me", requireActiveAccount(), async (req, res) => {
     const user = await dependencies.database.user.findFirst({
       where: { id: req.auth!.userId, deletedAt: null },
       include: { profile: true, preferences: true },
@@ -288,7 +288,7 @@ export function createAuthRouter(dependencies: AuthRouterDependencies): Router {
     });
   });
 
-  router.patch("/me/profile", requireAuthenticated(), csrfGuard, async (req, res) => {
+  router.patch("/me/profile", requireActiveAccount(), csrfGuard, async (req, res) => {
     const input = z.object({
       display_name: z.string().trim().min(1).max(80).nullable().optional(),
       locale: z.string().trim().min(2).max(16).optional(),
@@ -311,7 +311,7 @@ export function createAuthRouter(dependencies: AuthRouterDependencies): Router {
     res.status(200).json({ profile });
   });
 
-  router.patch("/me/preferences", requireAuthenticated(), csrfGuard, async (req, res) => {
+  router.patch("/me/preferences", requireActiveAccount(), csrfGuard, async (req, res) => {
     const input = z.object({
       theme: z.enum(["light", "dark", "system"]).optional(),
       default_model_id: z.string().trim().min(1).max(255).nullable().optional(),
@@ -334,7 +334,7 @@ export function createAuthRouter(dependencies: AuthRouterDependencies): Router {
     res.status(200).json({ preferences });
   });
 
-  router.get("/me/consents", requireAuthenticated(), async (req, res) => {
+  router.get("/me/consents", requireActiveAccount(), async (req, res) => {
     const consents = await dependencies.database.userConsent.findMany({
       where: { userId: req.auth!.userId },
       orderBy: { acceptedAt: "desc" },
@@ -343,7 +343,7 @@ export function createAuthRouter(dependencies: AuthRouterDependencies): Router {
     res.status(200).json({ consents });
   });
 
-  router.post("/me/consents", requireAuthenticated(), csrfGuard, async (req, res) => {
+  router.post("/me/consents", requireActiveAccount(), csrfGuard, async (req, res) => {
     const input = z.object({
       consent_type: z.enum(["terms", "privacy", "marketing"]),
       document_version: z.string().trim().min(1).max(64),
