@@ -1,17 +1,22 @@
 import { createServer } from "node:http";
 import { createApp } from "./app.js";
 import { env } from "./config/env.js";
+import { logger } from "./lib/logger.js";
 
 const server = createServer(createApp());
 server.listen(env.API_PORT, env.API_HOST, () => {
-  console.info({ event: "api.server.started", host: env.API_HOST, port: env.API_PORT, environment: env.NODE_ENV });
+  logger.info("api.server.started", {
+    host: env.API_HOST,
+    port: env.API_PORT,
+    environment: env.NODE_ENV,
+  });
 });
 
 const shutdown = (signal: NodeJS.Signals) => {
-  console.info({ event: "api.server.shutdown", signal });
+  logger.info("api.server.shutdown", { signal });
   server.close((error) => {
     if (error) {
-      console.error({ event: "api.server.shutdown_error", message: error.message });
+      logger.error("api.server.shutdown.error");
       process.exitCode = 1;
     }
   });
