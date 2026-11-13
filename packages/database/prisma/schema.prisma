@@ -54,6 +54,7 @@ model User {
   usageRecords        UsageRecord[]
   usageAggregates     UsageAggregate[]
   modelColors         ModelColorPreference[]
+  outboxEvents        OutboxEvent[]
 }
 
 model UserProfile {
@@ -130,6 +131,8 @@ model OutboxEvent {
   availableAt  DateTime  @default(now()) @map("available_at") @db.Timestamptz(6)
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   publishedAt   DateTime? @map("published_at") @db.Timestamptz(6)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@index([publishedAt, availableAt, createdAt])
   @@index([aggregateType, aggregateId, createdAt])
@@ -313,6 +316,7 @@ model CatalogPriceSnapshot {
   @@index([endpointId, sourceFetchedAt])
   @@map("catalog_price_snapshots")
   pricingPolicies PricingPolicySnapshot[]
+  usageRecords        UsageRecord[]
 }
 
 model CatalogSyncRun {
@@ -428,6 +432,7 @@ model WalletReservation {
   @@index([walletAccountId, status, expiresAt])
   @@index([userId, createdAt])
   @@map("wallet_reservations")
+  usageRecords        UsageRecord[]
 }
 
 model PaymentIntent {
@@ -486,6 +491,7 @@ model FxRateSnapshot {
 
   @@index([baseCurrency, quoteCurrency, sourceFetchedAt])
   @@map("fx_rate_snapshots")
+  usageRecords        UsageRecord[]
 }
 
 model PricingPolicySnapshot {
@@ -504,6 +510,7 @@ model PricingPolicySnapshot {
   @@index([catalogPriceSnapshotId, createdAt])
   @@index([fxRateSnapshotId])
   @@map("pricing_policy_snapshots")
+  usageRecords        UsageRecord[]
 }
 
 model ApiKey {
@@ -572,7 +579,10 @@ model UsageRecord {
   apiKey               ApiKey         @relation(fields: [apiKeyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   catalogModel         CatalogModel   @relation(fields: [catalogModelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   catalogEndpoint      CatalogEndpoint @relation(fields: [catalogEndpointId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  colorUnused          String?
+  catalogPriceSnapshot CatalogPriceSnapshot? @relation(fields: [catalogPriceSnapshotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  fxRateSnapshot       FxRateSnapshot? @relation(fields: [fxRateSnapshotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  pricingPolicySnapshot PricingPolicySnapshot? @relation(fields: [pricingPolicySnapshotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  walletReservation    WalletReservation? @relation(fields: [walletReservationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@index([userId, startedAt])
   @@index([apiKeyId, startedAt])
