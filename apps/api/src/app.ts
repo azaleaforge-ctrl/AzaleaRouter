@@ -17,6 +17,7 @@ export interface AppDependencies {
   authRouter?: Router;
   sessionVerifier?: SessionVerifier;
   billingRouter?: Router;
+  apiKeyRouter?: Router;
 }
 
 export function createApp(dependencies: AppDependencies = {}) {
@@ -34,6 +35,10 @@ export function createApp(dependencies: AppDependencies = {}) {
   }));
   app.use("/api/v1", createSessionResolver(dependencies.sessionVerifier));
   app.use("/api/v1", dependencies.authRouter ?? authUnavailableRouter);
+
+  if (dependencies.apiKeyRouter) {
+    app.use("/api/v1", dependencies.apiKeyRouter);
+  }
 
   if (dependencies.database) {
     app.use("/api/v1", createCatalogRouter(dependencies.database));
