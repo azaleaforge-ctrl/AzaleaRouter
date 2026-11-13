@@ -79,17 +79,41 @@ export class PaymentService {
 
     await this.wallet.ensureWallet(input.userId);
     const expiresAt = new Date(this.now().getTime() + this.options.intentLifetimeSeconds * 1000);
-    const intent = await this.database.paymentIntent.create({
-      data: {
-        userId: input.userId,
-        provider: this.provider.providerName,
-        idempotencyKey: input.idempotencyKey,
-        amount: input.amountIdr,
+    let intent;
+    try {
+      intent = await this.database.paymentIntent.create({
+        data: {
+          userId: input.userId,
+          provider: this.provider.providerName,
+          idempotencyKey: input.idempotencyKey,
+          amount: input.amountIdr,
+          currency: "IDR",
+          status: "pending",
+          expiresAt,
+        },
+      });
+    } catch (error) {
+      const code = error && typeof error === "object" && "code" in error
+        ? String((error as { code?: unknown }).code)
+        : "";
+      if (code !== "P2002") throw error;
+      const raced = await this.database.paymentIntent.findUnique({
+        where: { idempotencyKey: input.idempotencyKey },
+      });
+      if (!raced || raced.userId !== input.userId || raced.amount.toString() !== input.amountIdr) {
+        throw new Error("IDEMPOTENCY_KEY_CONFLICT");
+      }
+      return {
+        id: raced.id,
+        provider: raced.provider,
+        providerReference: raced.providerReference ?? "",
+        amountIdr: raced.amount.toString(),
         currency: "IDR",
-        status: "pending",
-        expiresAt,
-      },
-    });
+        status: raced.status,
+        expiresAt: raced.expiresAt,
+        checkoutUrl: null,
+      };
+    }
 
     try {
       const providerIntent = await this.provider.createPaymentIntent({
