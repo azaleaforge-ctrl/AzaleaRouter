@@ -9,6 +9,7 @@ export const openRouterModelSchema = z.object({
   description: z.string().max(50_000).nullable().optional(),
   created: z.number().int().nonnegative().optional(),
   context_length: z.number().int().positive().optional(),
+  top_provider: z.object({ max_completion_tokens: z.number().int().positive().optional() }).passthrough().optional(),
   expiration_date: z.string().datetime().nullable().optional(),
   architecture: z.object({
     input_modalities: z.array(z.string()).optional(),
