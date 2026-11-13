@@ -3,7 +3,10 @@ import { env } from "../config/env.js";
 import { HttpError } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";
 
-export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
+export const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
+  // Express requires the four-argument error middleware signature.
+  void next;
+
   const known = error instanceof HttpError;
   const statusCode = known ? error.statusCode : 500;
   const code = known ? error.code : "INTERNAL_ERROR";
