@@ -1,4 +1,4 @@
-name: Backend and frontend CI
+name: AzaleaRouter CI
 
 on:
   pull_request:
@@ -13,14 +13,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: azaleahouse-ci-${{ github.workflow }}-${{ github.ref }}
+  group: azalea-router-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   quality:
     name: Install, lint, typecheck, build and test
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,17 +36,33 @@ jobs:
           version: 12.18.0
           run_install: false
 
-      - name: Install dependencies
+      - name: Install dependencies and regenerate lockfile
         run: pnpm install --no-frozen-lockfile
 
-      - name: Lint
+      # Temporary artifact to bring the pnpm-generated lockfile back into the
+      # review branch. Remove this step once the generated lockfile is committed.
+      - name: Upload generated workspace lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-pnpm-lockfile
+          path: pnpm-lock.yaml
+          if-no-files-found: error
+          retention-days: 2
+
+      - name: Lint all workspace packages
         run: pnpm lint
 
       - name: Frontend typecheck
         run: pnpm typecheck
 
+      - name: Frontend build
+        run: pnpm build
+
       - name: Frontend unit tests
         run: pnpm test
+
+      - name: API lint
+        run: pnpm --filter @azalea-router/api lint
 
       - name: API typecheck
         run: pnpm --filter @azalea-router/api typecheck
@@ -54,7 +70,7 @@ jobs:
       - name: API build
         run: pnpm --filter @azalea-router/api build
 
-      - name: API tests
+      - name: API unit and integration tests
         run: pnpm --filter @azalea-router/api test
 
       - name: Verify committed lockfile is current
