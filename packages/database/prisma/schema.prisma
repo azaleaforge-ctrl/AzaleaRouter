@@ -50,6 +50,7 @@ model User {
   ledgerAccounts      LedgerAccount[]
   walletReservations  WalletReservation[]
   paymentIntents      PaymentIntent[]
+  apiKeys             ApiKey[]
 }
 
 model UserProfile {
@@ -496,4 +497,32 @@ model PricingPolicySnapshot {
   @@index([catalogPriceSnapshotId, createdAt])
   @@index([fxRateSnapshotId])
   @@map("pricing_policy_snapshots")
+}
+
+model ApiKey {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  name              String   @db.VarChar(80)
+  keyPrefix         String   @map("key_prefix") @db.VarChar(24)
+  tokenHash         String   @unique @map("token_hash") @db.Char(64)
+  pepperVersion     String   @map("pepper_version") @db.VarChar(32)
+  scopes            String[] @default([])
+  allowedModelIds   String[] @default([]) @map("allowed_model_ids")
+  spendLimitIdr     Decimal? @map("spend_limit_idr") @db.Decimal(38, 0)
+  rateLimitRpm      Int      @default(60) @map("rate_limit_rpm")
+  concurrencyLimit  Int      @default(2) @map("concurrency_limit")
+  status            String   @default("active") @db.VarChar(16)
+  expiresAt         DateTime? @map("expires_at") @db.Timestamptz(6)
+  lastUsedAt        DateTime? @map("last_used_at") @db.Timestamptz(6)
+  revokedAt         DateTime? @map("revoked_at") @db.Timestamptz(6)
+  rotatedFromId     String?  @unique @map("rotated_from_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user       User    @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  rotatedFrom ApiKey? @relation("ApiKeyRotation", fields: [rotatedFromId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  rotatedTo   ApiKey?  @relation("ApiKeyRotation")
+
+  @@index([userId, status, createdAt])
+  @@index([status, expiresAt])
+  @@map("api_keys")
 }
