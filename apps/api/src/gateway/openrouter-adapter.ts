@@ -14,10 +14,8 @@ export class OpenRouterProviderAdapter implements GatewayProviderAdapter {
 
   private async send(input: GatewayCompletionInput, stream: boolean, signal?: AbortSignal): Promise<Response> {
     const fetchImpl = this.options.fetchImpl ?? fetch;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.options.timeoutMs ?? 120_000);
-    const abortFromCaller = () => controller.abort();
-    signal?.addEventListener("abort", abortFromCaller, { once: true });
+    const timeoutSignal = AbortSignal.timeout(this.options.timeoutMs ?? 120_000);
+    const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
 
     try {
       const response = await fetchImpl(
@@ -43,7 +41,7 @@ export class OpenRouterProviderAdapter implements GatewayProviderAdapter {
               allow_fallbacks: false,
             },
           }),
-          signal: controller.signal,
+          signal: requestSignal,
         },
       );
       if (!response.ok) {
@@ -77,9 +75,6 @@ export class OpenRouterProviderAdapter implements GatewayProviderAdapter {
           headers: { "content-type": "application/json" },
         },
       );
-    } finally {
-      clearTimeout(timeout);
-      signal?.removeEventListener("abort", abortFromCaller);
     }
   }
 
