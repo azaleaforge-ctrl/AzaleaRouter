@@ -6,12 +6,12 @@ import { WalletService } from "../src/wallet-service.js";
 
 const databaseUrl = process.env.DATABASE_URL;
 
-test("wallet reserve rejects overspend and settlement produces one balanced ledger posting", {
+test("wallet reservation is concurrency-safe and settlement posts a balanced ledger once", {
   skip: !databaseUrl,
 }, async () => {
   const database = createDatabaseClient(databaseUrl!);
   await database.$connect();
-  let userId = "";
+
   try {
     const user = await database.user.create({
       data: {
@@ -23,18 +23,84 @@ test("wallet reserve rejects overspend and settlement produces one balanced ledg
         preferences: { create: {} },
       },
     });
-    userId = user.id;
-    const wallet = new WalletService(database);
-    await wallet.ensureWallet(userId);
+    const walletService = new WalletService(database);
+    await walletService.ensureWallet(user.id);
+    const wallet = await database.walletAccount.findUniqueOrThrow({ where: { userId: user.id } });
 
-    await assert.rejects(wallet.reserve({
-      userId,
-      amount: "1",
-      idempotencyKey: `reserve-overdraw-${randomUUID()}`,
+    const asset = await database.ledgerAccount.create({
+      data: {
+        code: `test.cash.${user.id}`,
+        name: "Test cash asset",
+        accountType: "asset",
+        normalBalance: "debit",
+        currency: "IDR",
+      },
+    });
+    const fundingTransaction = await database.ledgerTransaction.create({
+      data: {
+        idempotencyKey: `test-fund-${randomUUID()}`,
+        transactionType: "test_funding",
+        currency: "IDR",
+        status: "pending",
+      },
+    });
+    await database.ledgerEntry.createMany({
+      data: [
+        {
+          ledgerTransactionId: fundingTransaction.id,
+          ledgerAccountId: asset.id,
+          direction: "debit",
+          amount: "125000",
+          currency: "IDR",
+        },
+        {
+          ledgerTransactionId: fundingTransaction.id,
+          ledgerAccountId: wallet.ledgerAccountId,
+          direction: "credit",
+          amount: "125000",
+          currency: "IDR",
+        },
+      ],
+    });
+    await database.ledgerTransaction.update({
+      where: { id: fundingTransaction.id },
+      data: { status: "posted", postedAt: new Date() },
+    });
+
+    const reservation = await walletService.reserve({
+      userId: user.id,
+      amount: "100",
+      idempotencyKey: `test-reserve-${randomUUID()}`,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    assert.equal(reservation.status, "reserved");
+
+    await assert.rejects(walletService.reserve({
+      userId: user.id,
+      amount: "125000",
+      idempotencyKey: `test-overdraw-${randomUUID()}`,
       expiresAt: new Date(Date.now() + 60_000),
     }), /INSUFFICIENT_FUNDS/);
+
+    const settled = await walletService.settleReservation({
+      userId: user.id,
+      reservationId: reservation.reservationId,
+      idempotencyKey: `test-settle-${randomUUID()}`,
+    });
+    const repeated = await walletService.settleReservation({
+      userId: user.id,
+      reservationId: reservation.reservationId,
+      idempotencyKey: `test-settle-repeat-${randomUUID()}`,
+    });
+
+    assert.equal(settled.status, "settled");
+    assert.equal(repeated.ledgerTransactionId, settled.ledgerTransactionId);
+    const balance = await walletService.getBalance(user.id);
+    assert.equal(balance.ledgerBalance, "124900");
+    assert.equal(balance.reservedBalance, "0");
+    assert.equal(balance.availableBalance, "124900");
   } finally {
-    if (userId) await database.user.deleteMany({ where: { id: userId } });
+    // Financial rows are intentionally retained in this disposable CI database.
     await database.$disconnect();
   }
 });
