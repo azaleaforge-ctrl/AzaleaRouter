@@ -5,7 +5,10 @@ export interface RedisConnectionOptions {
   username?: string;
   password?: string;
   db?: number;
-  tls?: Record<string, never>;
+  tls?: {
+    rejectUnauthorized?: boolean;
+    servername?: string;
+  };
 }
 
 /**
