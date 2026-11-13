@@ -35,6 +35,8 @@ const envSchema = z.object({
   TURNSTILE_EXPECTED_HOSTNAME: z.string().min(1).max(253).optional(),
   AUTH_TERMS_VERSION: z.string().min(1).max(64).optional(),
   AUTH_PRIVACY_VERSION: z.string().min(1).max(64).optional(),
+  API_KEY_HASH_PEPPER: z.string().min(32).optional(),
+  API_KEY_PEPPER_VERSION: z.string().min(1).max(32).default("v1"),
   PAYMENT_PROVIDER: z.enum(["disabled", "sandbox"]).default("disabled"),
   PAYMENT_PROVIDER_APPROVED: booleanFromEnv.default(false),
   PAYMENT_SANDBOX_WEBHOOK_SECRET: z.string().min(32).optional(),
