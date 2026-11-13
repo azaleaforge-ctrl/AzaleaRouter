@@ -47,10 +47,6 @@ export function createGatewayRouter(options: GatewayRouterOptions): Router {
     }
 
     const input = chatCompletionSchema.parse(req.body);
-    if (key.allowedModelIds.length > 0 && !key.allowedModelIds.includes(input.model)) {
-      throw new HttpError(403, "API_KEY_MODEL_FORBIDDEN", "This API key is not allowed to use the requested model.");
-    }
-
     const model = await options.database.catalogModel.findFirst({
       where: {
         source: "openrouter",
