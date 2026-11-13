@@ -22,13 +22,13 @@ const envSchema = z.object({
   // Supabase is an optional identity-provider adapter, not an approved
   // commercial/provider decision. It remains disabled unless explicitly enabled.
   AUTH_PROVIDER: z.enum(["disabled", "supabase"]).default("disabled"),
-  AUTH_PROVIDER_APPROVED: booleanFromEnv.default("false"),
+  AUTH_PROVIDER_APPROVED: booleanFromEnv.default(false),
   SUPABASE_URL: z.string().url().optional(),
   SUPABASE_ANON_KEY: z.string().min(1).optional(),
   AUTH_TOKEN_ENCRYPTION_KEY: z.string().optional(),
   AUTH_TOKEN_ENCRYPTION_KEY_VERSION: z.string().min(1).max(32).default("v1"),
   AUTH_RATE_LIMIT_HASH_KEY: z.string().min(32).optional(),
-  AUTH_COOKIE_SECURE: booleanFromEnv.default("false"),
+  AUTH_COOKIE_SECURE: booleanFromEnv.default(false),
   AUTH_SESSION_MAX_AGE_SECONDS: z.coerce.number().int().min(300).max(60 * 60 * 24 * 60).default(60 * 60 * 24 * 14),
   AUTH_EMAIL_REDIRECT_URL: z.string().url().optional(),
   TURNSTILE_SECRET_KEY: z.string().min(1).optional(),
