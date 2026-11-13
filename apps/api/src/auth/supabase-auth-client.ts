@@ -6,6 +6,7 @@ export interface SupabaseAuthUser {
   email_confirmed_at?: string | null;
   confirmed_at?: string | null;
   user_metadata?: Record<string, unknown>;
+  identities?: Array<{ id?: string; provider?: string }>;
 }
 
 export interface SupabaseAuthTokens {
@@ -44,6 +45,9 @@ function parseUser(value: unknown): SupabaseAuthUser {
     user_metadata: user.user_metadata && typeof user.user_metadata === "object"
       ? user.user_metadata as Record<string, unknown>
       : {},
+    identities: Array.isArray(user.identities)
+      ? user.identities.filter((item): item is { id?: string; provider?: string } => Boolean(item) && typeof item === "object")
+      : undefined,
   };
 }
 
@@ -136,6 +140,9 @@ export class SupabaseAuthClient {
     });
     const data = result as Record<string, unknown>;
     const user = parseUser(data.user ?? data);
+    if (user.identities && user.identities.length === 0) {
+      throw new HttpError(409, "AUTH_REGISTRATION_UNAVAILABLE", "Registration could not be completed for this address.");
+    }
     const session = data.access_token && data.refresh_token ? parseTokens(data) : null;
     return { user, session };
   }
@@ -176,9 +183,10 @@ export class SupabaseAuthClient {
   }
 
   async recoverPassword(email: string, redirectTo?: string): Promise<void> {
-    await this.request("/recover", {
+    const path = redirectTo ? `/recover?redirect_to=${encodeURIComponent(redirectTo)}` : "/recover";
+    await this.request(path, {
       method: "POST",
-      body: JSON.stringify({ email, ...(redirectTo ? { redirect_to: redirectTo } : {}) }),
+      body: JSON.stringify({ email }),
     });
   }
 
