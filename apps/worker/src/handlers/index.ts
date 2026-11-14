@@ -2,7 +2,10 @@ import type { DatabaseClient } from "@azalea-router/database";
 import type { BackgroundJobHandler } from "../queue.js";
 import { systemHealthCheckHandler } from "./system-health-check.js";
 
-export function createJobHandlers(database?: DatabaseClient): ReadonlyMap<string, BackgroundJobHandler> {
+export function createJobHandlers(
+  database?: DatabaseClient,
+  catalogSyncHandler?: BackgroundJobHandler,
+): ReadonlyMap<string, BackgroundJobHandler> {
   const handlers = new Map<string, BackgroundJobHandler>([
     ["system.health-check", systemHealthCheckHandler],
   ]);
@@ -29,6 +32,10 @@ export function createJobHandlers(database?: DatabaseClient): ReadonlyMap<string
         deleted_rate_limit_buckets: deletedRateLimitBuckets.count,
       };
     });
+  }
+
+  if (database && catalogSyncHandler) {
+    handlers.set("catalog.openrouter.sync", catalogSyncHandler);
   }
 
   return handlers;

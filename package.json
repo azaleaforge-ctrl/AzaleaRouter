@@ -17,7 +17,11 @@
     "test:e2e": "playwright test",
     "db:generate": "pnpm --filter @azalea-router/database db:generate",
     "db:validate": "pnpm --filter @azalea-router/database db:validate",
-    "db:migrate:deploy": "pnpm --filter @azalea-router/database db:migrate:deploy"
+    "db:migrate:deploy": "pnpm --filter @azalea-router/database db:migrate:deploy",
+    "catalog:lint": "pnpm --filter @azalea-router/catalog lint",
+    "catalog:typecheck": "pnpm --filter @azalea-router/catalog typecheck",
+    "catalog:build": "pnpm --filter @azalea-router/catalog build",
+    "catalog:test": "pnpm --filter @azalea-router/catalog test"
   },
   "dependencies": {
     "next": "16.4.6",

@@ -383,6 +383,155 @@ paths:
           $ref: "#/components/responses/ErrorResponse"
         "409":
           $ref: "#/components/responses/ErrorResponse"
+  /catalog/status:
+    get:
+      operationId: getCatalogStatus
+      summary: Read source-backed model catalog readiness and latest sync result
+      security: []
+      responses:
+        "200":
+          description: Catalog readiness based on distinct active canonical chat models with priced endpoints
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogStatus"
+  /models:
+    get:
+      operationId: listModels
+      summary: List active canonical chat models with verified endpoint pricing
+      security: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - in: query
+          name: cursor
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: q
+          schema:
+            type: string
+            maxLength: 120
+        - in: query
+          name: developer
+          schema:
+            type: string
+            maxLength: 255
+        - in: query
+          name: provider
+          schema:
+            type: string
+            maxLength: 255
+        - in: query
+          name: input_modality
+          schema:
+            type: string
+            maxLength: 32
+        - in: query
+          name: output_modality
+          schema:
+            type: string
+            maxLength: 32
+      responses:
+        "200":
+          description: Cursor-paginated canonical models
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelListResponse"
+  /models/{modelId}:
+    get:
+      operationId: getModel
+      summary: Read a canonical model and source-verified endpoints
+      security: []
+      parameters:
+        - in: path
+          name: modelId
+          required: true
+          schema:
+            type: string
+            maxLength: 255
+      responses:
+        "200":
+          description: Canonical model
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Model"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+  /models/{modelId}/endpoints:
+    get:
+      operationId: listModelEndpoints
+      summary: List active provider endpoints with current source price snapshots
+      security: []
+      parameters:
+        - in: path
+          name: modelId
+          required: true
+          schema:
+            type: string
+            maxLength: 255
+      responses:
+        "200":
+          description: Available provider endpoints and USD price snapshots
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [canonical_id, endpoints]
+                properties:
+                  canonical_id:
+                    type: string
+                  endpoints:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ModelEndpoint"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+  /developers:
+    get:
+      operationId: listDevelopers
+      summary: List developers represented by active source-verified catalog models
+      security: []
+      responses:
+        "200":
+          description: Active developers
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Developer"
+  /providers:
+    get:
+      operationId: listProviders
+      summary: List upstream providers serving active priced endpoints
+      security: []
+      responses:
+        "200":
+          description: Providers
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Provider"
+
 components:
   securitySchemes:
     cookieAuth:
@@ -434,6 +583,195 @@ components:
               enum: [ok, not_configured, unavailable]
         request_id:
           type: string
+
+    CatalogStatus:
+      type: object
+      required: [source, minimum_required_models, active_canonical_chat_models, ready_for_public_catalog, last_sync]
+      properties:
+        source:
+          const: openrouter
+        minimum_required_models:
+          const: 50
+        active_canonical_chat_models:
+          type: integer
+          minimum: 0
+        ready_for_public_catalog:
+          type: boolean
+        last_sync:
+          oneOf:
+            - $ref: "#/components/schemas/CatalogSyncRun"
+            - type: "null"
+    CatalogSyncRun:
+      type: object
+      required: [id, status, started_at, discovered_models, validated_models, active_models, discovered_endpoints, price_snapshots]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          enum: [running, succeeded, partial, failed]
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: [string, "null"]
+          format: date-time
+        discovered_models:
+          type: integer
+        validated_models:
+          type: integer
+        active_models:
+          type: integer
+        discovered_endpoints:
+          type: integer
+        price_snapshots:
+          type: integer
+        error_code:
+          type: [string, "null"]
+    ModelListResponse:
+      type: object
+      required: [data, page, catalog_ready, total_active_models]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Model"
+        page:
+          type: object
+          required: [limit, next_cursor]
+          properties:
+            limit:
+              type: integer
+            next_cursor:
+              type: [string, "null"]
+        catalog_ready:
+          type: boolean
+        total_active_models:
+          type: integer
+    Model:
+      type: object
+      required: [id, canonical_id, source_model_id, name, input_modalities, output_modalities, supported_parameters, endpoints, last_verified_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        canonical_id:
+          type: string
+        source_model_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: [string, "null"]
+        developer:
+          oneOf:
+            - $ref: "#/components/schemas/DeveloperIdentity"
+            - type: "null"
+        context_length:
+          type: [integer, "null"]
+        max_completion_tokens:
+          type: [integer, "null"]
+        input_modalities:
+          type: array
+          items:
+            type: string
+        output_modalities:
+          type: array
+          items:
+            type: string
+        supported_parameters:
+          type: array
+          items:
+            type: string
+        endpoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelEndpoint"
+        last_verified_at:
+          type: string
+          format: date-time
+    ModelEndpoint:
+      type: object
+      required: [id, provider, name, api_path, supported_parameters, source_fetched_at, pricing]
+      properties:
+        id:
+          type: string
+          format: uuid
+        provider:
+          $ref: "#/components/schemas/DeveloperIdentity"
+        name:
+          type: string
+        model_variant:
+          type: [string, "null"]
+        api_path:
+          type: string
+        context_length:
+          type: [integer, "null"]
+        max_completion_tokens:
+          type: [integer, "null"]
+        max_prompt_tokens:
+          type: [integer, "null"]
+        quantization:
+          type: [string, "null"]
+        supported_parameters:
+          type: array
+          items:
+            type: string
+        source_fetched_at:
+          type: string
+          format: date-time
+        pricing:
+          oneOf:
+            - $ref: "#/components/schemas/ModelPricing"
+            - type: "null"
+    ModelPricing:
+      type: object
+      required: [currency, prompt, completion, request, image, source_fetched_at]
+      properties:
+        currency:
+          const: USD
+        prompt:
+          type: string
+          pattern: '^\\d+(?:\\.\\d+)?$'
+        completion:
+          type: string
+          pattern: '^\\d+(?:\\.\\d+)?$'
+        request:
+          type: string
+        image:
+          type: string
+        source_fetched_at:
+          type: string
+          format: date-time
+    Developer:
+      type: object
+      required: [slug, name, active_models]
+      properties:
+        slug:
+          type: string
+        name:
+          type: string
+        active_models:
+          type: integer
+    Provider:
+      type: object
+      required: [slug, name, active_endpoints]
+      properties:
+        slug:
+          type: string
+        name:
+          type: string
+        active_endpoints:
+          type: integer
+    DeveloperIdentity:
+      type: object
+      required: [slug, name]
+      properties:
+        slug:
+          type: string
+        name:
+          type: string
+
     ErrorResponse:
       type: object
       additionalProperties: false
