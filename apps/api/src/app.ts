@@ -32,6 +32,7 @@ export interface AppDependencies {
   notificationRouter?: Router;
   supportRouter?: Router;
   contentRouter?: Router;
+  adminRouter?: Router;
 }
 
 export function createApp(dependencies: AppDependencies = {}) {
@@ -83,6 +84,9 @@ export function createApp(dependencies: AppDependencies = {}) {
   }
   if (dependencies.contentRouter) {
     app.use("/api/v1", dependencies.contentRouter);
+  }
+  if (dependencies.adminRouter) {
+    app.use("/api/v1", dependencies.adminRouter);
   }
 
   app.use("/api/v1", healthRouter);
