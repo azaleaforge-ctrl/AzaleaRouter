@@ -40,7 +40,7 @@ function mapTicket(ticket: {
     body: string;
     createdAt: Date;
   }>;
-}) {
+}, includeInternal = false) {
   return {
     id: ticket.id,
     ticket_number: ticket.ticketNumber,
@@ -53,6 +53,7 @@ function mapTicket(ticket: {
     updated_at: ticket.updatedAt.toISOString(),
     ...(ticket.messages ? {
       messages: ticket.messages
+        .filter((message) => includeInternal || message.visibility === "PUBLIC")
         .map((message) => ({
           id: message.id,
           author_user_id: message.authorUserId,
@@ -206,7 +207,7 @@ export function createSupportRouter(options: SupportRouterOptions): Router {
       include: { messages: { orderBy: { createdAt: "asc" } } },
     });
     if (!ticket) throw new HttpError(404, "SUPPORT_TICKET_NOT_FOUND", "Assigned ticket was not found.");
-    res.status(200).json({ ticket: mapTicket(ticket) });
+    res.status(200).json({ ticket: mapTicket(ticket, true) });
   });
 
   router.post("/support/assigned/:id/replies", requirePermission("support:tickets:reply:assigned"), csrf, async (req, res) => {
