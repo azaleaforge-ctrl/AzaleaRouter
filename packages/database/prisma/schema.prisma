@@ -356,7 +356,7 @@ model WalletAccount {
 
   user          User          @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   ledgerAccount LedgerAccount @relation(fields: [ledgerAccountId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  reservation   WalletReservation?
+  reservations  WalletReservation[]
 
   @@index([status, currency])
   @@map("wallet_accounts")
