@@ -98,6 +98,30 @@ jobs:
       - name: Database unit tests
         run: pnpm --filter @azalea-router/database test
 
+      - name: Catalog package lint
+        run: pnpm --filter @azalea-router/catalog lint
+
+      - name: Catalog package typecheck
+        run: pnpm --filter @azalea-router/catalog typecheck
+
+      - name: Catalog package build
+        run: pnpm --filter @azalea-router/catalog build
+
+      - name: Catalog package unit tests
+        run: pnpm --filter @azalea-router/catalog test
+
+      - name: Billing package lint
+        run: pnpm --filter @azalea-router/billing lint
+
+      - name: Billing package typecheck
+        run: pnpm --filter @azalea-router/billing typecheck
+
+      - name: Billing package build
+        run: pnpm --filter @azalea-router/billing build
+
+      - name: Billing package unit tests
+        run: pnpm --filter @azalea-router/billing test
+
       - name: API lint
         run: pnpm --filter @azalea-router/api lint
 
