@@ -210,7 +210,7 @@ BEGIN
   END IF;
   IF NOT (
     (OLD."status" = 'quarantined' AND NEW."status" IN ('quarantined','clean','rejected','deleted')) OR
-    (OLD."status" = 'clean' AND NEW."status IN ('clean','deleted')) OR
+    (OLD."status" = 'clean' AND NEW."status" IN ('clean','deleted')) OR
     (OLD."status" = 'rejected' AND NEW."status" IN ('rejected','deleted')) OR
     (OLD."status" = 'deleted' AND NEW."status" = 'deleted')
   ) THEN
