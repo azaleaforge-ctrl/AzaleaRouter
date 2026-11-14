@@ -146,7 +146,7 @@ export class UsageService {
     if (
       policy.fxRateSnapshot.baseCurrency !== "USD" ||
       policy.fxRateSnapshot.quoteCurrency !== "IDR" ||
-      decimalString(policy.fxRateSnapshot.rate) === "0"
+      /^0(?:\\.0+)?$/.test(decimalString(policy.fxRateSnapshot.rate))
     ) {
       throw new Error("FX_SNAPSHOT_INVALID");
     }
@@ -383,6 +383,53 @@ export class UsageService {
       where: { usageRecordId, releasedAt: null },
       data: { expiresAt: new Date(now.getTime() + this.concurrencyLeaseSeconds * 1000) },
     });
+  }
+
+  async markPendingReconciliation(input: {
+    usageRecordId: string;
+    errorCode: string;
+  }): Promise<void> {
+    const now = new Date(this.now());
+    await this.database.$transaction(async (tx) => {
+      const usage = await tx.usageRecord.findUnique({ where: { id: input.usageRecordId } });
+      if (!usage || ["settled", "released", "failed"].includes(usage.status)) return;
+      if (usage.status !== "pending_reconciliation") {
+        await tx.usageRecord.update({
+          where: { id: usage.id },
+          data: {
+            status: "pending_reconciliation",
+            reconciliationStatus: "required",
+            errorCode: input.errorCode.slice(0, 80),
+            completedAt: now,
+          },
+        });
+      }
+      await tx.apiKeyConcurrencyLease.updateMany({
+        where: { usageRecordId: usage.id, releasedAt: null },
+        data: { releasedAt: now },
+      });
+      await tx.outboxEvent.create({
+        data: {
+          userId: usage.userId,
+          aggregateType: "usage_request",
+          aggregateId: usage.id,
+          eventType: "notification.created",
+          schemaVersion: 1,
+          idempotencyKey: `usage.unknown-cost:${usage.id}`,
+          payloadSafe: {
+            request_id: usage.requestId,
+            status: "pending_reconciliation",
+            currency: "IDR",
+            code: input.errorCode.slice(0, 80),
+            occurred_at: now.toISOString(),
+          },
+          occurredAt: now,
+          availableAt: now,
+          publishedAt: now,
+          expiresAt: new Date(now.getTime() + this.replayWindowSeconds * 1000),
+        },
+      });
+    }, { isolationLevel: "Serializable", timeout: 15_000 });
   }
 
   async finalize(input: UsageFinalizationInput): Promise<UsageFinalizationResult> {
