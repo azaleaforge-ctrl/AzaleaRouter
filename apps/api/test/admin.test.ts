@@ -38,7 +38,7 @@ async function closeServer(server: Server): Promise<void> {
 }
 
 test("admin operations endpoints require an authenticated principal", async () => {
-  const database = {} as DatabaseClient;
+  const database = {} as unknown as DatabaseClient;
   const { server, baseUrl } = await startAdminServer(database);
   try {
     const response = await fetch(`${baseUrl}/api/v1/admin/operations/summary`);
