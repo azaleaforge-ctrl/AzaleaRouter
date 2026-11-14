@@ -80,28 +80,11 @@ export function createFileRouter(options: FileRouterOptions): Router {
       limit: z.coerce.number().int().min(1).max(100).default(50),
       status: z.enum(["quarantined", "clean", "rejected", "deleted"]).optional(),
     }).strict().parse(req.query);
-    const rows = await (options.files as unknown as {
-      database: {
-        fileAttachment: {
-          findMany(args: unknown): Promise<Array<{
-            id: string; originalFilename: string; mimeType: string; fileSize: bigint;
-            status: string; scanVerdict: string | null; createdAt: Date;
-          }>>;
-        };
-      };
-    }).database.fileAttachment.findMany({
-      where: {
-        userId: req.auth!.userId,
-        deletedAt: null,
-        ...(query.status ? { status: query.status.toUpperCase() } : {}),
-      },
-      orderBy: { createdAt: "desc" },
-      take: query.limit,
-      select: {
-        id: true, originalFilename: true, mimeType: true, fileSize: true,
-        status: true, scanVerdict: true, createdAt: true,
-      },
-    });
+    const rows = await options.files.list(
+      req.auth!.userId,
+      query.limit,
+      query.status?.toUpperCase() as "QUARANTINED" | "CLEAN" | "REJECTED" | "DELETED" | undefined,
+    );
     res.status(200).json({
       data: rows.map((file) => ({
         id: file.id,
