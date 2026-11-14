@@ -4,7 +4,8 @@ import { csvCell } from "../src/routes/usage.js";
 
 test("CSV cells quote commas, newlines, and embedded quotation marks", () => {
   assert.equal(csvCell('hello,"world"'), '"hello,""world"""');
-  assert.equal(csvCell("line one\\nline two"), JSON.stringify("line one\\nline two"));
+  assert.equal(csvCell("line one\\nline two"), '"line one\\nline two"');
+  assert.equal(csvCell("line one\nline two"), '"line one\nline two"');
 });
 
 test("CSV cells neutralize spreadsheet formula starters", () => {
