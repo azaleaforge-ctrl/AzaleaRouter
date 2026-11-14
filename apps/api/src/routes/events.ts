@@ -152,13 +152,17 @@ export function createEventStreamRouter(options: EventStreamOptions): Router {
         }
         const events = await options.database.outboxEvent.findMany({
           where: {
-            OR: [{ userId }, { userId: null }],
+            AND: [
+              { OR: [{ userId }, { userId: null }] },
+              {
+                OR: [
+                  { occurredAt: { gt: cursor.occurredAt } },
+                  { occurredAt: cursor.occurredAt, id: { gt: cursor.id } },
+                ],
+              },
+            ],
             publishedAt: { not: null },
             expiresAt: { gt: new Date() },
-            OR: [
-              { occurredAt: { gt: cursor.occurredAt } },
-              { occurredAt: cursor.occurredAt, id: { gt: cursor.id } },
-            ],
           },
           orderBy: [{ occurredAt: "asc" }, { id: "asc" }],
           take: 100,
