@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import type { DatabaseClient } from "@azalea-router/database";
-import { UsageService } from "@azalea-router/billing";
+import type { UsageService } from "@azalea-router/billing";
 import { requireActiveAccount } from "../middleware/authorization.js";
 import { requireCsrf } from "../middleware/csrf.js";
 import { HttpError } from "../lib/http-error.js";
