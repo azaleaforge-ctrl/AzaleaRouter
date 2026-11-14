@@ -35,6 +35,15 @@ export function createJobHandlers(
   }
 
   if (database) {
+    handlers.set("api-keys.cleanup-expired", async () => {
+      const now = new Date();
+      const result = await database.apiKey.updateMany({
+        where: { status: "active", expiresAt: { lte: now } },
+        data: { status: "expired", revokedAt: now },
+      });
+      return { expired_api_keys: result.count };
+    });
+
     handlers.set("wallet.cleanup-expired-reservations", async () => {
       const result = await database.walletReservation.updateMany({
         where: { status: "reserved", expiresAt: { lte: new Date() } },

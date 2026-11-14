@@ -1,22 +1,22 @@
 import { createServer } from "node:http";
 import { createDatabaseClient } from "@azalea-router/database";
 import { LocalSandboxPaymentAdapter, PaymentService, WalletService } from "@azalea-router/billing";
-import { createOpenRouterCatalogSyncHandler } from "@azalea-router/catalog";
+import { ApiKeyService } from "./auth/api-key-service.js";
 import { AuthRateLimiter } from "./auth/auth-rate-limiter.js";
 import { AuthSessionService } from "./auth/session-service.js";
 import { SupabaseAuthClient } from "./auth/supabase-auth-client.js";
 import { TurnstileVerifier } from "./auth/turnstile-verifier.js";
 import { createApp } from "./app.js";
 import { env } from "./config/env.js";
+import { OpenRouterProviderAdapter } from "./gateway/openrouter-adapter.js";
 import { logger } from "./lib/logger.js";
+import { createApiKeyRouter } from "./routes/api-keys.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { createBillingRouter } from "./routes/billing.js";
+import { createGatewayRouter } from "./routes/gateway.js";
 
 async function start(): Promise<void> {
-  const database = env.DATABASE_URL
-    ? createDatabaseClient(env.DATABASE_URL)
-    : undefined;
-
+  const database = env.DATABASE_URL ? createDatabaseClient(env.DATABASE_URL) : undefined;
   if (database) await database.$connect();
 
   let auth: {
@@ -62,29 +62,51 @@ async function start(): Promise<void> {
     };
   }
 
-  let billingRouter: ReturnType<typeof createBillingRouter> | undefined;
-  if (database) {
-    const wallet = new WalletService(database);
-    const payment = env.PAYMENT_PROVIDER === "sandbox"
-      ? new PaymentService(
-          database,
-          new LocalSandboxPaymentAdapter(env.PAYMENT_SANDBOX_WEBHOOK_SECRET!),
-          { intentLifetimeSeconds: env.PAYMENT_INTENT_LIFETIME_SECONDS },
-        )
-      : undefined;
-    billingRouter = createBillingRouter({
-      database,
-      wallet,
-      ...(payment ? { payment } : {}),
-      csrfCookieName: auth?.sessionVerifier.csrfCookieName ?? "azlr_csrf",
-      allowedOrigins: env.WEB_ORIGIN ? [env.WEB_ORIGIN] : [],
-    });
-  }
+  const wallet = database ? new WalletService(database) : undefined;
+  const payment = database && env.PAYMENT_PROVIDER === "sandbox"
+    ? new PaymentService(
+        database,
+        new LocalSandboxPaymentAdapter(env.PAYMENT_SANDBOX_WEBHOOK_SECRET!),
+        { intentLifetimeSeconds: env.PAYMENT_INTENT_LIFETIME_SECONDS },
+      )
+    : undefined;
+  const billingRouter = database && wallet
+    ? createBillingRouter({
+        database,
+        wallet,
+        ...(payment ? { payment } : {}),
+        csrfCookieName: auth?.sessionVerifier.csrfCookieName ?? "azlr_csrf",
+        allowedOrigins: env.WEB_ORIGIN ? [env.WEB_ORIGIN] : [],
+      })
+    : undefined;
+
+  const apiKeyService = database && env.API_KEY_HASH_PEPPER
+    ? new ApiKeyService(database, env.API_KEY_HASH_PEPPER, env.API_KEY_PEPPER_VERSION)
+    : undefined;
+  const apiKeyRouter = apiKeyService
+    ? createApiKeyRouter(apiKeyService, {
+        csrfCookieName: auth?.sessionVerifier.csrfCookieName ?? "azlr_csrf",
+        allowedOrigins: env.WEB_ORIGIN ? [env.WEB_ORIGIN] : [],
+      })
+    : undefined;
+
+  const gatewayRouter = database && apiKeyService
+    ? createGatewayRouter({
+        database,
+        apiKeys: apiKeyService,
+        enabled: env.GATEWAY_ENABLED,
+        upstreamApproved: env.UPSTREAM_PROVIDER_APPROVED,
+        settlementReady: env.BILLING_SETTLEMENT_ENABLED,
+        ...(env.GATEWAY_ENABLED ? { provider: new OpenRouterProviderAdapter(env.UPSTREAM_OPENROUTER_API_KEY!) } : {}),
+      })
+    : undefined;
 
   const app = createApp({
     ...(database ? { database } : {}),
     ...(auth ? { authRouter: auth.router, sessionVerifier: auth.sessionVerifier } : {}),
     ...(billingRouter ? { billingRouter } : {}),
+    ...(apiKeyRouter ? { apiKeyRouter } : {}),
+    ...(gatewayRouter ? { gatewayRouter } : {}),
   });
   const server = createServer(app);
   server.listen(env.API_PORT, env.API_HOST, () => {

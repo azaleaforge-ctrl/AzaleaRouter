@@ -626,6 +626,126 @@ paths:
         "503":
           $ref: "#/components/responses/ErrorResponse"
 
+  /me/api-keys:
+    get:
+      operationId: listApiKeys
+      summary: List the current user's masked AZL API keys
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Masked API keys; plaintext secrets are never returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyListResponse"
+    post:
+      operationId: createApiKey
+      summary: Create an AZL API key and reveal its plaintext exactly once
+      security:
+        - cookieAuth: []
+        - csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateApiKeyRequest"
+      responses:
+        "201":
+          description: Newly created key, including one-time plaintext
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssuedApiKeyResponse"
+        "409":
+          $ref: "#/components/responses/ErrorResponse"
+  /me/api-keys/{keyId}/rotate:
+    post:
+      operationId: rotateApiKey
+      summary: Revoke the old key and reveal a replacement exactly once
+      security:
+        - cookieAuth: []
+        - csrfHeader: []
+      parameters:
+        - in: path
+          name: keyId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "201":
+          description: Replacement API key revealed once
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssuedApiKeyResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+  /me/api-keys/{keyId}:
+    delete:
+      operationId: revokeApiKey
+      summary: Revoke the current user's API key
+      security:
+        - cookieAuth: []
+        - csrfHeader: []
+      parameters:
+        - in: path
+          name: keyId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Revocation state
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, status]
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  status:
+                    enum: [revoked, rotated, expired]
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+  /chat/completions:
+    post:
+      operationId: createChatCompletion
+      summary: OpenAI-compatible chat completion endpoint (disabled until upstream/legal and usage settlement gates are satisfied)
+      servers:
+        - url: /v1
+      security:
+        - apiKeyBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatCompletionRequest"
+      responses:
+        "200":
+          description: Chat completion or server-sent event stream
+          content:
+            application/json:
+              schema:
+                type: object
+            text/event-stream:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+
 components:
   securitySchemes:
     cookieAuth:
@@ -738,6 +858,155 @@ components:
           enum: [processed, rejected, failed]
         paymentIntentId:
           type: [string, "null"]
+    CreateApiKeyRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        scopes:
+          type: array
+          items:
+            const: chat:completions
+          default: [chat:completions]
+        allowed_model_ids:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+        spend_limit_idr:
+          type: string
+          pattern: '^(?:0|[1-9]\\d{0,37})$'
+        rate_limit_rpm:
+          type: integer
+          minimum: 1
+          maximum: 10000
+          default: 60
+        concurrency_limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 2
+        expires_at:
+          type: string
+          format: date-time
+    ApiKeyListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            required: [id, name, key_prefix, scopes, allowed_model_ids, status, created_at]
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+              key_prefix:
+                type: string
+              scopes:
+                type: array
+                items:
+                  type: string
+              allowed_model_ids:
+                type: array
+                items:
+                  type: string
+              status:
+                type: string
+              created_at:
+                type: string
+                format: date-time
+    IssuedApiKeyResponse:
+      type: object
+      required: [api_key, warning]
+      properties:
+        api_key:
+          type: object
+          required: [id, name, key_prefix, api_key, scopes, allowed_model_ids, created_at]
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            key_prefix:
+              type: string
+            api_key:
+              type: string
+              writeOnly: true
+              pattern: '^AZL-[A-Za-z0-9_-]{43}$'
+            scopes:
+              type: array
+              items:
+                type: string
+            allowed_model_ids:
+              type: array
+              items:
+                type: string
+            spend_limit_idr:
+              type: [string, "null"]
+            rate_limit_rpm:
+              type: integer
+            concurrency_limit:
+              type: integer
+            expires_at:
+              type: [string, "null"]
+            created_at:
+              type: string
+              format: date-time
+        warning:
+          type: string
+    ChatCompletionRequest:
+      type: object
+      additionalProperties: false
+      required: [model, messages]
+      properties:
+        model:
+          type: string
+        messages:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [role, content]
+            properties:
+              role:
+                enum: [system, developer, user, assistant, tool]
+              content:
+                oneOf:
+                  - type: string
+                  - type: array
+                    items:
+                      type: object
+        max_tokens:
+          type: integer
+          minimum: 1
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+        top_p:
+          type: number
+          minimum: 0
+          maximum: 1
+        stop:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        stream:
+          type: boolean
+        endpoint_id:
+          type: string
+          format: uuid
     CatalogStatus:
       type: object
       required: [source, minimum_required_models, active_canonical_chat_models, ready_for_public_catalog, last_sync]
