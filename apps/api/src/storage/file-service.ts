@@ -141,6 +141,27 @@ export class FileService {
     }
   }
 
+  async list(userId: string, limit: number, status?: "QUARANTINED" | "CLEAN" | "REJECTED" | "DELETED") {
+    return this.database.fileAttachment.findMany({
+      where: {
+        userId,
+        deletedAt: null,
+        ...(status ? { status } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      select: {
+        id: true,
+        originalFilename: true,
+        mimeType: true,
+        fileSize: true,
+        status: true,
+        scanVerdict: true,
+        createdAt: true,
+      },
+    });
+  }
+
   async getDownload(userId: string, attachmentId: string) {
     const record = await this.database.fileAttachment.findFirst({
       where: { id: attachmentId, userId, deletedAt: null },
