@@ -345,7 +345,8 @@ CREATE TRIGGER "payment_intents_no_delete"
   BEFORE DELETE ON "payment_intents"
   FOR EACH ROW EXECUTE FUNCTION "reject_payment_intent_delete"();
 
-CREATE FUNCTION "guard_payment_webhook_processing"() RETURNS trigger AS $$17625BEGIN
+CREATE FUNCTION "guard_payment_webhook_processing"() RETURNS trigger AS $$
+BEGIN
   IF TG_OP = 'DELETE' THEN
     RAISE EXCEPTION 'payment webhook inbox records cannot be deleted';
   END IF;
@@ -367,7 +368,7 @@ CREATE FUNCTION "guard_payment_webhook_processing"() RETURNS trigger AS $$17625B
   END IF;
   RETURN NEW;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 CREATE TRIGGER "payment_webhooks_processing_guard"
   BEFORE UPDATE OR DELETE ON "payment_webhooks"
   FOR EACH ROW EXECUTE FUNCTION "guard_payment_webhook_processing"();
