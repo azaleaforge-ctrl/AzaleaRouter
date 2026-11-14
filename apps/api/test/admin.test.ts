@@ -49,7 +49,7 @@ test("admin operations endpoints require an authenticated principal", async () =
 });
 
 test("support role cannot access admin operations or audit data", async () => {
-  const database = {} as DatabaseClient;
+  const database = {} as unknown as DatabaseClient;
   const { server, baseUrl } = await startAdminServer(database);
   try {
     const [operations, audit] = await Promise.all([
