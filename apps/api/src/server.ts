@@ -16,6 +16,14 @@ import { createBillingRouter } from "./routes/billing.js";
 import { createGatewayRouter } from "./routes/gateway.js";
 import { createUsageRouter } from "./routes/usage.js";
 import { createEventStreamRouter } from "./routes/events.js";
+import { createConversationRouter } from "./routes/conversations.js";
+import { createFileRouter } from "./routes/files.js";
+import { createNotificationRouter } from "./routes/notifications.js";
+import { createSupportRouter } from "./routes/support.js";
+import { createContentRouter } from "./routes/content.js";
+import { LocalPrivateObjectStorage } from "./storage/private-object-storage.js";
+import { UnavailableFileScanner } from "./storage/file-scanner.js";
+import { FileService } from "./storage/file-service.js";
 
 async function start(): Promise<void> {
   const database = env.DATABASE_URL ? createDatabaseClient(env.DATABASE_URL) : undefined;
@@ -115,6 +123,47 @@ async function start(): Promise<void> {
       })
     : undefined;
 
+  const conversationRouter = database && auth
+    ? createConversationRouter({
+        database,
+        csrfCookieName: auth.sessionVerifier.csrfCookieName,
+        allowedOrigins: env.WEB_ORIGIN ? [env.WEB_ORIGIN] : [],
+      })
+    : undefined;
+
+  const fileService = database && auth && env.FILE_UPLOAD_ENABLED && env.PRIVATE_UPLOAD_DIR
+    ? new FileService(
+        database,
+        new LocalPrivateObjectStorage(env.PRIVATE_UPLOAD_DIR),
+        new UnavailableFileScanner(),
+      )
+    : undefined;
+  const fileRouter = fileService && auth
+    ? createFileRouter({
+        files: fileService,
+        csrfCookieName: auth.sessionVerifier.csrfCookieName,
+        allowedOrigins: env.WEB_ORIGIN ? [env.WEB_ORIGIN] : [],
+      })
+    : undefined;
+
+  const notificationRouter = database && auth
+    ? createNotificationRouter({
+        database,
+        csrfCookieName: auth.sessionVerifier.csrfCookieName,
+        allowedOrigins: env.WEB_ORIGIN ? [env.WEB_ORIGIN] : [],
+      })
+    : undefined;
+
+  const supportRouter = database && auth
+    ? createSupportRouter({
+        database,
+        csrfCookieName: auth.sessionVerifier.csrfCookieName,
+        allowedOrigins: env.WEB_ORIGIN ? [env.WEB_ORIGIN] : [],
+      })
+    : undefined;
+
+  const contentRouter = database ? createContentRouter(database) : undefined;
+
   const gatewayRouter = database && apiKeyService && usage
     ? createGatewayRouter({
         database,
@@ -135,6 +184,11 @@ async function start(): Promise<void> {
     ...(gatewayRouter ? { gatewayRouter } : {}),
     ...(usageRouter ? { usageRouter } : {}),
     ...(eventsRouter ? { eventsRouter } : {}),
+    ...(conversationRouter ? { conversationRouter } : {}),
+    ...(fileRouter ? { fileRouter } : {}),
+    ...(notificationRouter ? { notificationRouter } : {}),
+    ...(supportRouter ? { supportRouter } : {}),
+    ...(contentRouter ? { contentRouter } : {}),
   });
   const server = createServer(app);
   server.listen(env.API_PORT, env.API_HOST, () => {

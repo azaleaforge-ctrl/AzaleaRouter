@@ -9,6 +9,88 @@ datasource db {
   provider = "postgresql"
 }
 
+enum ConversationStatus {
+  ACTIVE   @map("active")
+  ARCHIVED @map("archived")
+  DELETED  @map("deleted")
+
+  @@map("conversation_status")
+}
+
+enum MessageRole {
+  SYSTEM      @map("system")
+  DEVELOPER   @map("developer")
+  USER        @map("user")
+  ASSISTANT   @map("assistant")
+  TOOL        @map("tool")
+
+  @@map("message_role")
+}
+
+enum MessageStatus {
+  PENDING    @map("pending")
+  STREAMING  @map("streaming")
+  COMPLETED  @map("completed")
+  FAILED     @map("failed")
+  CANCELLED  @map("cancelled")
+
+  @@map("message_status")
+}
+
+enum AttachmentStatus {
+  QUARANTINED @map("quarantined")
+  CLEAN       @map("clean")
+  REJECTED    @map("rejected")
+  DELETED     @map("deleted")
+
+  @@map("attachment_status")
+}
+
+enum SupportTicketStatus {
+  OPEN        @map("open")
+  IN_PROGRESS @map("in_progress")
+  WAITING     @map("waiting")
+  RESOLVED    @map("resolved")
+  CLOSED      @map("closed")
+
+  @@map("support_ticket_status")
+}
+
+enum SupportTicketPriority {
+  LOW    @map("low")
+  NORMAL @map("normal")
+  HIGH   @map("high")
+  URGENT @map("urgent")
+
+  @@map("support_ticket_priority")
+}
+
+enum SupportTicketVisibility {
+  PUBLIC  @map("public")
+  INTERNAL @map("internal")
+
+  @@map("support_ticket_visibility")
+}
+
+enum ContentEntryType {
+  DOCS      @map("docs")
+  HELP      @map("help")
+  BLOG      @map("blog")
+  STATUS    @map("status")
+  CHANGELOG @map("changelog")
+
+  @@map("content_entry_type")
+}
+
+enum ContentEntryStatus {
+  DRAFT     @map("draft")
+  REVIEW    @map("review")
+  PUBLISHED @map("published")
+  ARCHIVED  @map("archived")
+
+  @@map("content_entry_status")
+}
+
 enum UserRole {
   USER        @map("user")
   SUPPORT     @map("support")
@@ -56,6 +138,14 @@ model User {
   modelColors         ModelColorPreference[]
   outboxEvents        OutboxEvent[]
   usageExports        UsageExport[]
+  conversations       Conversation[]
+  authoredChatMessages ChatMessage[]
+  uploadedAttachments FileAttachment[] @relation("AttachmentUploader")
+  notifications       Notification[]
+  ownedSupportTickets SupportTicket[] @relation("SupportTicketOwner")
+  assignedSupportTickets SupportTicket[] @relation("SupportTicketAssignee")
+  supportTicketMessages SupportTicketMessage[]
+  authoredContentEntries ContentEntry[]
 }
 
 model UserProfile {
@@ -704,4 +794,175 @@ model UsageExport {
   @@index([userId, createdAt])
   @@index([status, expiresAt])
   @@map("usage_exports")
+}
+
+model Conversation {
+  id             String             @id @default(uuid()) @db.Uuid
+  userId         String             @map("user_id") @db.Uuid
+  title          String             @default("New conversation") @db.VarChar(160)
+  status         ConversationStatus @default(ACTIVE)
+  defaultModelId String?            @map("default_model_id") @db.VarChar(255)
+  metadataSafe   Json?              @map("metadata_safe") @db.JsonB
+  lastMessageAt  DateTime?          @map("last_message_at") @db.Timestamptz(6)
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  archivedAt     DateTime?          @map("archived_at") @db.Timestamptz(6)
+  deletedAt      DateTime?          @map("deleted_at") @db.Timestamptz(6)
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  messages    ChatMessage[]
+  attachments FileAttachment[]
+
+  @@index([userId, status, updatedAt])
+  @@index([userId, lastMessageAt])
+  @@map("conversations")
+}
+
+model ChatMessage {
+  id                  String        @id @default(uuid()) @db.Uuid
+  conversationId      String        @map("conversation_id") @db.Uuid
+  authorUserId        String?       @map("author_user_id") @db.Uuid
+  role                MessageRole
+  status              MessageStatus @default(COMPLETED)
+  content             Json          @db.JsonB
+  canonicalModelId    String?       @map("canonical_model_id") @db.VarChar(255)
+  sourceModelId       String?       @map("source_model_id") @db.VarChar(255)
+  providerSlug        String?       @map("provider_slug") @db.VarChar(128)
+  providerRequestId   String?       @map("provider_request_id") @db.VarChar(255)
+  requestId           String?       @map("request_id") @db.VarChar(100)
+  idempotencyKey      String?       @unique @map("idempotency_key") @db.VarChar(220)
+  promptTokens        BigInt        @default(0) @map("prompt_tokens")
+  completionTokens    BigInt        @default(0) @map("completion_tokens")
+  totalTokens         BigInt        @default(0) @map("total_tokens")
+  customerChargeIdr   Decimal?      @map("customer_charge_idr") @db.Decimal(38, 0)
+  errorCode           String?       @map("error_code") @db.VarChar(80)
+  createdAt           DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  completedAt         DateTime?     @map("completed_at") @db.Timestamptz(6)
+  deletedAt           DateTime?     @map("deleted_at") @db.Timestamptz(6)
+
+  conversation Conversation     @relation(fields: [conversationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  authorUser   User?            @relation(fields: [authorUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  attachments  FileAttachment[]
+
+  @@index([conversationId, createdAt, id])
+  @@index([authorUserId, createdAt])
+  @@index([status, createdAt])
+  @@map("chat_messages")
+}
+
+model FileAttachment {
+  id                   String           @id @default(uuid()) @db.Uuid
+  userId               String           @map("user_id") @db.Uuid
+  conversationId       String?          @map("conversation_id") @db.Uuid
+  messageId            String?          @map("message_id") @db.Uuid
+  originalFilename     String           @map("original_filename") @db.VarChar(255)
+  safeFilename         String           @map("safe_filename") @db.VarChar(255)
+  mimeType             String           @map("mime_type") @db.VarChar(160)
+  fileSize             BigInt           @map("file_size")
+  sha256               String           @db.Char(64)
+  storageKey           String           @unique @map("storage_key") @db.VarChar(512)
+  status               AttachmentStatus @default(QUARANTINED)
+  scanEngine           String?          @map("scan_engine") @db.VarChar(120)
+  scanVerdict          String?          @map("scan_verdict") @db.VarChar(32)
+  scanCompletedAt      DateTime?        @map("scan_completed_at") @db.Timestamptz(6)
+  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt            DateTime?        @map("expires_at") @db.Timestamptz(6)
+  deletedAt            DateTime?        @map("deleted_at") @db.Timestamptz(6)
+
+  user         User         @relation("AttachmentUploader", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  message      ChatMessage? @relation(fields: [messageId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([messageId])
+  @@index([status, expiresAt])
+  @@map("file_attachments")
+}
+
+model Notification {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  type        String   @db.VarChar(80)
+  title       String   @db.VarChar(160)
+  body        String?  @db.VarChar(1000)
+  payloadSafe Json?    @map("payload_safe") @db.JsonB
+  readAt      DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt   DateTime? @map("expires_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([userId, readAt, createdAt])
+  @@index([expiresAt])
+  @@map("notifications")
+}
+
+model SupportTicket {
+  id                  String                  @id @default(uuid()) @db.Uuid
+  ticketNumber        String                  @unique @map("ticket_number") @db.VarChar(32)
+  ownerUserId         String                  @map("owner_user_id") @db.Uuid
+  assignedSupportId   String?                 @map("assigned_support_id") @db.Uuid
+  subject             String                  @db.VarChar(160)
+  category            String                  @db.VarChar(64)
+  status              SupportTicketStatus     @default(OPEN)
+  priority            SupportTicketPriority   @default(NORMAL)
+  lastMessageAt       DateTime                @default(now()) @map("last_message_at") @db.Timestamptz(6)
+  createdAt           DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  resolvedAt          DateTime?               @map("resolved_at") @db.Timestamptz(6)
+  closedAt            DateTime?               @map("closed_at") @db.Timestamptz(6)
+
+  owner       User                  @relation("SupportTicketOwner", fields: [ownerUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  assignedTo  User?                 @relation("SupportTicketAssignee", fields: [assignedSupportId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  messages    SupportTicketMessage[]
+
+  @@index([ownerUserId, status, updatedAt])
+  @@index([assignedSupportId, status, updatedAt])
+  @@index([status, priority, lastMessageAt])
+  @@map("support_tickets")
+}
+
+model SupportTicketMessage {
+  id          String                  @id @default(uuid()) @db.Uuid
+  ticketId    String                  @map("ticket_id") @db.Uuid
+  authorUserId String                 @map("author_user_id") @db.Uuid
+  visibility  SupportTicketVisibility @default(PUBLIC)
+  body        String                  @db.Text
+  createdAt   DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  editedAt    DateTime?               @map("edited_at") @db.Timestamptz(6)
+  deletedAt   DateTime?               @map("deleted_at") @db.Timestamptz(6)
+
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  authorUser User          @relation(fields: [authorUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@index([authorUserId, createdAt])
+  @@map("support_ticket_messages")
+}
+
+model ContentEntry {
+  id            String             @id @default(uuid()) @db.Uuid
+  type          ContentEntryType
+  status        ContentEntryStatus @default(DRAFT)
+  slug          String             @db.VarChar(180)
+  locale        String             @default("id-ID") @db.VarChar(16)
+  title         String             @db.VarChar(200)
+  summary       String?            @db.VarChar(500)
+  bodyMarkdown  String             @map("body_markdown") @db.Text
+  tags          String[]           @default([])
+  authorUserId  String?            @map("author_user_id") @db.Uuid
+  publishedAt   DateTime?          @map("published_at") @db.Timestamptz(6)
+  scheduledAt   DateTime?          @map("scheduled_at") @db.Timestamptz(6)
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  archivedAt    DateTime?          @map("archived_at") @db.Timestamptz(6)
+
+  author User? @relation(fields: [authorUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([type, slug, locale])
+  @@index([type, status, publishedAt])
+  @@index([authorUserId, createdAt])
+  @@map("content_entries")
 }
