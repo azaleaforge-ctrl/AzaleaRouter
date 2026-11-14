@@ -1,8 +1,13 @@
 import { createServer } from "node:http";
 import { createDatabaseClient } from "@azalea-router/database";
+import { AuthRateLimiter } from "./auth/auth-rate-limiter.js";
+import { AuthSessionService } from "./auth/session-service.js";
+import { SupabaseAuthClient } from "./auth/supabase-auth-client.js";
+import { TurnstileVerifier } from "./auth/turnstile-verifier.js";
 import { createApp } from "./app.js";
 import { env } from "./config/env.js";
 import { logger } from "./lib/logger.js";
+import { createAuthRouter } from "./routes/auth.js";
 
 async function start(): Promise<void> {
   const database = env.DATABASE_URL
@@ -13,7 +18,55 @@ async function start(): Promise<void> {
     await database.$connect();
   }
 
-  const app = createApp(database ? { database } : {});
+  let auth: {
+    router: ReturnType<typeof createAuthRouter>;
+    sessionVerifier: AuthSessionService;
+  } | undefined;
+
+  if (env.AUTH_PROVIDER === "supabase") {
+    if (!database) {
+      throw new Error("Database is required when AUTH_PROVIDER=supabase.");
+    }
+    const provider = new SupabaseAuthClient({
+      url: env.SUPABASE_URL!,
+      anonKey: env.SUPABASE_ANON_KEY!,
+    });
+    const sessions = new AuthSessionService(database, provider, {
+      encryptionKey: env.AUTH_TOKEN_ENCRYPTION_KEY!,
+      encryptionKeyVersion: env.AUTH_TOKEN_ENCRYPTION_KEY_VERSION,
+      secureCookies: env.AUTH_COOKIE_SECURE,
+      maximumAgeSeconds: env.AUTH_SESSION_MAX_AGE_SECONDS,
+    });
+    const turnstile = new TurnstileVerifier(database, {
+      secretKey: env.TURNSTILE_SECRET_KEY!,
+      expectedHostname: env.TURNSTILE_EXPECTED_HOSTNAME!,
+    });
+    const rateLimiter = new AuthRateLimiter(database, {
+      hashKey: env.AUTH_RATE_LIMIT_HASH_KEY!,
+      windowSeconds: 300,
+      maximumHits: 10,
+    });
+
+    auth = {
+      sessionVerifier: sessions,
+      router: createAuthRouter({
+        database,
+        provider,
+        sessions,
+        turnstile,
+        rateLimiter,
+        termsVersion: env.AUTH_TERMS_VERSION!,
+        privacyVersion: env.AUTH_PRIVACY_VERSION!,
+        ...(env.AUTH_EMAIL_REDIRECT_URL ? { emailRedirectTo: env.AUTH_EMAIL_REDIRECT_URL } : {}),
+        allowedOrigins: [env.WEB_ORIGIN!],
+      }),
+    };
+  }
+
+  const app = createApp({
+    ...(database ? { database } : {}),
+    ...(auth ? { authRouter: auth.router, sessionVerifier: auth.sessionVerifier } : {}),
+  });
   const server = createServer(app);
   server.listen(env.API_PORT, env.API_HOST, () => {
     logger.info("api.server.started", {

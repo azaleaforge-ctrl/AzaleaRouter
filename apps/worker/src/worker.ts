@@ -1,9 +1,26 @@
+import { createDatabaseClient } from "@azalea-router/database";
 import { env } from "./config/env.js";
-import { jobHandlers } from "./handlers/index.js";
+import { createJobHandlers } from "./handlers/index.js";
 import { logWorkerEvent, type SafeWorkerLogFields } from "./lib/logger.js";
+import { createBackgroundQueue } from "./queue.js";
 import { createBackgroundWorker } from "./worker-runtime.js";
 
-const worker = createBackgroundWorker({ handlers: jobHandlers });
+const database = env.DATABASE_URL ? createDatabaseClient(env.DATABASE_URL) : undefined;
+if (database) await database.$connect();
+
+const queue = database ? createBackgroundQueue() : undefined;
+if (queue) {
+  await queue.add(
+    "auth.cleanup-expired",
+    {},
+    {
+      jobId: "auth-cleanup-expired-hourly",
+      repeat: { every: 60 * 60 * 1000 },
+    },
+  );
+}
+
+const worker = createBackgroundWorker({ handlers: createJobHandlers(database) });
 
 worker.on("completed", (job) => {
   const fields: SafeWorkerLogFields = {
@@ -24,7 +41,6 @@ worker.on("failed", (job) => {
 });
 
 worker.on("error", () => {
-  // Error messages may include connection details; emit only a stable event.
   logWorkerEvent("error", "worker.connection.error", {
     queueName: env.WORKER_QUEUE_NAME,
   });
@@ -41,6 +57,8 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   logWorkerEvent("info", "worker.shutdown", { signal, queueName: env.WORKER_QUEUE_NAME });
   try {
     await worker.close();
+    await queue?.close();
+    await database?.$disconnect();
     process.exitCode = 0;
   } catch {
     logWorkerEvent("error", "worker.shutdown.error", { queueName: env.WORKER_QUEUE_NAME });
