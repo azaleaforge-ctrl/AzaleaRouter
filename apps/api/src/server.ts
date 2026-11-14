@@ -21,6 +21,7 @@ import { createFileRouter } from "./routes/files.js";
 import { createNotificationRouter } from "./routes/notifications.js";
 import { createSupportRouter } from "./routes/support.js";
 import { createContentRouter } from "./routes/content.js";
+import { createAdminRouter } from "./routes/admin.js";
 import { LocalPrivateObjectStorage } from "./storage/private-object-storage.js";
 import { UnavailableFileScanner } from "./storage/file-scanner.js";
 import { FileService } from "./storage/file-service.js";
@@ -163,6 +164,7 @@ async function start(): Promise<void> {
     : undefined;
 
   const contentRouter = database ? createContentRouter(database) : undefined;
+  const adminRouter = database ? createAdminRouter({ database }) : undefined;
 
   const gatewayRouter = database && apiKeyService && usage
     ? createGatewayRouter({
@@ -189,6 +191,7 @@ async function start(): Promise<void> {
     ...(notificationRouter ? { notificationRouter } : {}),
     ...(supportRouter ? { supportRouter } : {}),
     ...(contentRouter ? { contentRouter } : {}),
+    ...(adminRouter ? { adminRouter } : {}),
   });
   const server = createServer(app);
   server.listen(env.API_PORT, env.API_HOST, () => {
