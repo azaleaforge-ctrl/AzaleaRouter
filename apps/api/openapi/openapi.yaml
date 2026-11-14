@@ -967,6 +967,440 @@ paths:
         "401":
           $ref: "#/components/responses/ErrorResponse"
 
+  /conversations:
+    get:
+      operationId: listConversations
+      summary: List conversations owned by the current user
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - in: query
+          name: cursor
+          schema: { type: string, format: uuid }
+        - in: query
+          name: status
+          schema: { type: string, enum: [active, archived] }
+      responses:
+        "200":
+          description: Cursor-paginated user conversations
+          content:
+            application/json:
+              schema: { type: object }
+        "401": { $ref: "#/components/responses/ErrorResponse" }
+    post:
+      operationId: createConversation
+      summary: Create a conversation
+      security: [{ cookieAuth: [] }, { csrfHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                title: { type: string, minLength: 1, maxLength: 160 }
+                default_model_id: { type: string, maxLength: 255 }
+      responses:
+        "201":
+          description: Conversation created
+          content:
+            application/json:
+              schema: { type: object }
+        "400": { $ref: "#/components/responses/ErrorResponse" }
+        "401": { $ref: "#/components/responses/ErrorResponse" }
+  /conversations/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getConversation
+      summary: Read an owned conversation and recent messages
+      security: [{ cookieAuth: [] }]
+      responses:
+        "200":
+          description: Conversation and recent messages
+          content:
+            application/json:
+              schema: { type: object }
+        "404": { $ref: "#/components/responses/ErrorResponse" }
+    patch:
+      operationId: updateConversation
+      summary: Rename, archive or restore a conversation
+      security: [{ cookieAuth: [] }, { csrfHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200":
+          description: Updated conversation
+          content:
+            application/json:
+              schema: { type: object }
+        "404": { $ref: "#/components/responses/ErrorResponse" }
+    delete:
+      operationId: deleteConversation
+      summary: Soft-delete an owned conversation
+      security: [{ cookieAuth: [] }, { csrfHeader: [] }]
+      responses:
+        "204": { description: Conversation deleted }
+        "404": { $ref: "#/components/responses/ErrorResponse" }
+  /conversations/{id}/messages:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: listConversationMessages
+      summary: List messages in an owned conversation
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: cursor
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Cursor-paginated messages
+          content:
+            application/json:
+              schema: { type: object }
+    post:
+      operationId: createConversationMessage
+      summary: Persist a user message with clean file attachments
+      security: [{ cookieAuth: [] }, { csrfHeader: [] }]
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema: { type: string, minLength: 8, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                text: { type: string, maxLength: 100000 }
+                attachment_ids:
+                  type: array
+                  maxItems: 10
+                  items: { type: string, format: uuid }
+      responses:
+        "201":
+          description: User message persisted
+          content:
+            application/json:
+              schema: { type: object }
+        "409": { $ref: "#/components/responses/ErrorResponse" }
+        "423": { $ref: "#/components/responses/ErrorResponse" }
+  /files:
+    post:
+      operationId: uploadPrivateFile
+      summary: Upload a private file into quarantine for scanning
+      security: [{ cookieAuth: [] }, { csrfHeader: [] }]
+      parameters:
+        - in: header
+          name: X-File-Name
+          required: true
+          schema: { type: string, maxLength: 255 }
+        - in: header
+          name: X-File-Mime-Type
+          required: true
+          schema: { type: string, maxLength: 160 }
+        - in: header
+          name: X-Conversation-Id
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "201": { description: File accepted and marked clean by the configured scanner }
+        "202": { description: File stored in quarantine while scanner verdict is unknown }
+        "413": { $ref: "#/components/responses/ErrorResponse" }
+        "415": { $ref: "#/components/responses/ErrorResponse" }
+    get:
+      operationId: listPrivateFiles
+      summary: List private files owned by the current user
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: status
+          schema: { type: string, enum: [quarantined, clean, rejected, deleted] }
+      responses:
+        "200":
+          description: User-owned file metadata
+          content:
+            application/json:
+              schema: { type: object }
+  /files/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: downloadPrivateFile
+      summary: Download an owned file only after a clean scanner verdict and hash check
+      security: [{ cookieAuth: [] }]
+      responses:
+        "200":
+          description: Verified private binary file
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "404": { $ref: "#/components/responses/ErrorResponse" }
+        "423": { $ref: "#/components/responses/ErrorResponse" }
+    delete:
+      operationId: deletePrivateFile
+      summary: Soft-delete an owned private file
+      security: [{ cookieAuth: [] }, { csrfHeader: [] }]
+      responses:
+        "204": { description: File deleted }
+        "404": { $ref: "#/components/responses/ErrorResponse" }
+  /notifications:
+    get:
+      operationId: listNotifications
+      summary: List notifications for the current user
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: cursor
+          schema: { type: string, format: uuid }
+        - in: query
+          name: unread_only
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: Cursor-paginated notifications
+          content:
+            application/json:
+              schema: { type: object }
+  /notifications/{id}/read:
+    patch:
+      operationId: markNotificationRead
+      summary: Mark one owned notification as read
+      security: [{ cookieAuth: [] }, { csrfHeader: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204": { description: Notification marked as read }
+        "404": { $ref: "#/components/responses/ErrorResponse" }
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      summary: Mark all current-user notifications as read
+      security: [{ cookieAuth: [] }, { csrfHeader: [] }]
+      responses:
+        "200":
+          description: Count of updated notifications
+          content:
+            application/json:
+              schema: { type: object }
+  /support/tickets:
+    get:
+      operationId: listSupportTickets
+      summary: List support tickets owned by the current user
+      security: [{ cookieAuth: [] }]
+      responses:
+        "200":
+          description: User-owned tickets
+          content:
+            application/json:
+              schema: { type: object }
+    post:
+      operationId: createSupportTicket
+      summary: Create a support ticket
+      security: [{ cookieAuth: [] }, { csrfHeader: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [subject, category, body]
+              properties:
+                subject: { type: string, minLength: 5, maxLength: 160 }
+                category: { type: string, enum: [account, billing, technical, model, other] }
+                body: { type: string, minLength: 2, maxLength: 20000 }
+      responses:
+        "201":
+          description: Ticket created
+          content:
+            application/json:
+              schema: { type: object }
+  /support/tickets/{id}:
+    get:
+      operationId: getSupportTicket
+      summary: Read a support ticket owned by the current user
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Ticket and customer-visible messages
+          content:
+            application/json:
+              schema: { type: object }
+        "404": { $ref: "#/components/responses/ErrorResponse" }
+  /support/tickets/{id}/replies:
+    post:
+      operationId: replyToSupportTicket
+      summary: Reply to an owned support ticket
+      security: [{ cookieAuth: [] }, { csrfHeader: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [body]
+              properties:
+                body: { type: string, minLength: 2, maxLength: 20000 }
+      responses:
+        "201":
+          description: Reply created
+          content:
+            application/json:
+              schema: { type: object }
+        "404": { $ref: "#/components/responses/ErrorResponse" }
+  /support/assigned:
+    get:
+      operationId: listAssignedSupportTickets
+      summary: List tickets assigned to the authenticated support agent
+      security: [{ cookieAuth: [] }]
+      responses:
+        "200":
+          description: Assigned support tickets
+          content:
+            application/json:
+              schema: { type: object }
+        "403": { $ref: "#/components/responses/ErrorResponse" }
+  /support/assigned/{id}:
+    get:
+      operationId: getAssignedSupportTicket
+      summary: Read a ticket explicitly assigned to the authenticated support agent
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Assigned ticket including staff-only notes
+          content:
+            application/json:
+              schema: { type: object }
+        "404": { $ref: "#/components/responses/ErrorResponse" }
+  /support/assigned/{id}/replies:
+    post:
+      operationId: replyToAssignedSupportTicket
+      summary: Add a customer-visible reply or internal note to an assigned ticket
+      security: [{ cookieAuth: [] }, { csrfHeader: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [body]
+              properties:
+                body: { type: string, minLength: 2, maxLength: 20000 }
+                visibility: { type: string, enum: [public, internal], default: public }
+      responses:
+        "201":
+          description: Support message created
+          content:
+            application/json:
+              schema: { type: object }
+        "403": { $ref: "#/components/responses/ErrorResponse" }
+  /content/{type}:
+    get:
+      operationId: listPublishedContent
+      summary: List published documentation, help, blog, status and changelog entries
+      security: []
+      parameters:
+        - in: path
+          name: type
+          required: true
+          schema: { type: string, enum: [docs, help, blog, status, changelog] }
+        - in: query
+          name: locale
+          schema: { type: string, default: id-ID }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: Published content entries
+          content:
+            application/json:
+              schema: { type: object }
+  /content/{type}/{slug}:
+    get:
+      operationId: getPublishedContent
+      summary: Read a published CMS entry
+      security: []
+      parameters:
+        - in: path
+          name: type
+          required: true
+          schema: { type: string, enum: [docs, help, blog, status, changelog] }
+        - in: path
+          name: slug
+          required: true
+          schema: { type: string, maxLength: 180 }
+        - in: query
+          name: locale
+          schema: { type: string, default: id-ID }
+      responses:
+        "200":
+          description: Published content entry
+          content:
+            application/json:
+              schema: { type: object }
+        "404": { $ref: "#/components/responses/ErrorResponse" }
+
+
 components:
   securitySchemes:
     apiKeyBearer:
