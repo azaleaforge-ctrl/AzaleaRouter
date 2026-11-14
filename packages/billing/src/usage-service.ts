@@ -408,6 +408,7 @@ export class UsageService {
         where: { usageRecordId: usage.id, releasedAt: null },
         data: { releasedAt: now },
       });
+      if (usage.status === "pending_reconciliation") return;
       await tx.outboxEvent.create({
         data: {
           userId: usage.userId,
@@ -461,7 +462,7 @@ export class UsageService {
           reconciliationRequired: false,
         };
       }
-      if (!["started", "streaming", "completed"].includes(usage.status)) {
+      if (!["started", "streaming", "completed", "pending_reconciliation"].includes(usage.status)) {
         throw new Error("USAGE_RECORD_NOT_FINALIZABLE");
       }
       if (!usage.catalogPriceSnapshot || !usage.fxRateSnapshot || !usage.pricingPolicySnapshot) {
@@ -496,7 +497,7 @@ export class UsageService {
             completionTokens: BigInt(input.completionTokens),
             cachedTokens: BigInt(input.cachedTokens ?? 0),
             reasoningTokens: BigInt(input.reasoningTokens ?? 0),
-            totalTokens: BigInt(input.promptTokens + input.completionTokens),
+            totalTokens: BigInt(input.promptTokens) + BigInt(input.completionTokens),
             providerCostIdr: cost.providerCostIdr,
             customerChargeIdr: cost.customerChargeIdr,
             completedAt: new Date(this.now()),
@@ -539,6 +540,13 @@ export class UsageService {
         };
       }
 
+      if (usage.status === "started" || usage.status === "streaming") {
+        await tx.usageRecord.update({
+          where: { id: usage.id },
+          data: { status: "completed" },
+        });
+      }
+
       if (usage.walletReservationId) {
         await this.wallet.settleReservationInTransaction(tx, {
           userId: usage.userId,
@@ -562,7 +570,7 @@ export class UsageService {
           completionTokens: BigInt(input.completionTokens),
           cachedTokens: BigInt(input.cachedTokens ?? 0),
           reasoningTokens: BigInt(input.reasoningTokens ?? 0),
-          totalTokens: BigInt(input.promptTokens + input.completionTokens),
+          totalTokens: BigInt(input.promptTokens) + BigInt(input.completionTokens),
           providerCostIdr: cost.providerCostIdr,
           customerChargeIdr: cost.customerChargeIdr,
           completedAt,
@@ -593,7 +601,7 @@ export class UsageService {
           completionTokens: BigInt(input.completionTokens),
           cachedTokens: BigInt(input.cachedTokens ?? 0),
           reasoningTokens: BigInt(input.reasoningTokens ?? 0),
-          totalTokens: BigInt(input.promptTokens + input.completionTokens),
+          totalTokens: BigInt(input.promptTokens) + BigInt(input.completionTokens),
           providerCostIdr: cost.providerCostIdr,
           customerChargeIdr: cost.customerChargeIdr,
           currency: "IDR",
