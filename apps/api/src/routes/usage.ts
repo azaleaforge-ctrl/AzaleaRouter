@@ -33,9 +33,12 @@ function validateRange(from?: Date, to?: Date): void {
   }
 }
 
-function csvCell(value: unknown): string {
+export function csvCell(value: unknown): string {
   const text = value === null || value === undefined ? "" : String(value);
-  return `"${text.replaceAll('"', '""')}"`;
+  // Prefix spreadsheet formula starters after optional whitespace. CSV quoting
+  // alone does not stop Excel/LibreOffice from evaluating formula cells.
+  const safe = /^[\\t\\r ]*[=+\\-@]/.test(text) ? `'${text}` : text;
+  return `"${safe.replaceAll('"', '""')}"`;
 }
 
 function decimal(value: { toString(): string } | string | null | undefined): string | null {
@@ -111,6 +114,7 @@ export function createUsageRouter(options: UsageRouterOptions): Router {
   });
   const maximumExportRows = options.exportMaximumRows ?? 5_000;
   const exportLifetimeSeconds = options.exportLifetimeSeconds ?? 24 * 60 * 60;
+  const maximumExportBytes = 5 * 1024 * 1024;
 
   router.get("/usage/summary", active, async (req, res) => {
     const query = rangeSchema.parse(req.query);
@@ -289,7 +293,7 @@ export function createUsageRouter(options: UsageRouterOptions): Router {
     }
     res.status(200);
     res.setHeader("content-type", "text/csv; charset=utf-8");
-    res.setHeader("content-disposition", `attachment; filename="azale router-usage-${record.id}.csv"`.replaceAll(" ", "-"));
+    res.setHeader("content-disposition", `attachment; filename="azalea-router-usage-${record.id}.csv"`);
     res.setHeader("cache-control", "no-store");
     res.send(record.csvContent);
   });
