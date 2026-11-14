@@ -35,6 +35,10 @@ const envSchema = z.object({
   TURNSTILE_EXPECTED_HOSTNAME: z.string().min(1).max(253).optional(),
   AUTH_TERMS_VERSION: z.string().min(1).max(64).optional(),
   AUTH_PRIVACY_VERSION: z.string().min(1).max(64).optional(),
+  PAYMENT_PROVIDER: z.enum(["disabled", "sandbox"]).default("disabled"),
+  PAYMENT_PROVIDER_APPROVED: booleanFromEnv.default(false),
+  PAYMENT_SANDBOX_WEBHOOK_SECRET: z.string().min(32).optional(),
+  PAYMENT_INTENT_LIFETIME_SECONDS: z.coerce.number().int().min(60).max(86_400).default(1_800),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -106,6 +110,18 @@ if (value.AUTH_PROVIDER === "supabase") {
   }
   if (encryptionKey.length !== 32) {
     throw new Error("AUTH_TOKEN_ENCRYPTION_KEY must be base64-encoded 32-byte key material.");
+  }
+}
+
+if (value.PAYMENT_PROVIDER === "sandbox") {
+  if (!value.PAYMENT_PROVIDER_APPROVED) {
+    throw new Error("PAYMENT_PROVIDER=sandbox requires PAYMENT_PROVIDER_APPROVED=true.");
+  }
+  if (value.NODE_ENV === "production") {
+    throw new Error("The local HMAC sandbox payment adapter is forbidden in production.");
+  }
+  if (!value.DATABASE_URL || !value.PAYMENT_SANDBOX_WEBHOOK_SECRET) {
+    throw new Error("Sandbox payments require DATABASE_URL and PAYMENT_SANDBOX_WEBHOOK_SECRET.");
   }
 }
 

@@ -49,3 +49,17 @@
 |---|---|
 | 13 Nov 2026 | Initialized from the OPEN/PROPOSED/BLOCKER states in Backend PRD v0.4. No user/business decision is marked approved. |
 | 13 Nov 2026 | Recorded PostgreSQL + Prisma 7.10.1 as a reversible local/test baseline. Production hosting, residency, backups and credentials remain OPEN. |
+
+
+## BE-4 implementation update — 13 November 2026
+
+The repository now contains a reversible local implementation of an IDR integer-ledger and HMAC payment-webhook sandbox. This does not resolve any commercial decision.
+
+- **D-04 — Payment merchant/provider:** OPEN. `local-sandbox` is a test adapter only; no merchant agreement, checkout channel, fee schedule or production credential exists.
+- **D-05 — Upstream downstream/resale permission:** BLOCKER. No paid upstream requests or customer wallet debits may be enabled.
+- **D-07 — FX source:** OPEN. No source, cadence, fallback, override or stale-rate threshold is selected. Pricing functions require an explicit source snapshot and do not fetch or invent a rate.
+- **D-08 — Markup:** OPEN. The calculation engine accepts explicit basis points and fixed IDR fee as inputs, but no production values are assumed.
+- **D-09 — Refund/expiry/chargeback:** OPEN. Payment intent expiry and wallet reservation expiry are technical local lifecycles only; refund, dispute and balance policy remain unimplemented pending approval.
+- **D-15 — Maker-checker thresholds:** OPEN. Live admin adjustments and refunds remain disabled.
+
+See `BE-4-financial-readiness.md`. The implementation is not a production payment integration and does not authorize paid traffic.

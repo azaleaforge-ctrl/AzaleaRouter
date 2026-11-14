@@ -532,6 +532,100 @@ paths:
                     items:
                       $ref: "#/components/schemas/Provider"
 
+  /wallet:
+    get:
+      operationId: getWalletBalance
+      summary: Read current user's IDR wallet ledger balance and active reservations
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Wallet is present or has not been created yet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletResponse"
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+  /wallet/payment-intents:
+    post:
+      operationId: createWalletPaymentIntent
+      summary: Create an idempotent pending IDR top-up intent
+      security:
+        - cookieAuth: []
+        - csrfHeader: []
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [amount_idr]
+              properties:
+                amount_idr:
+                  type: string
+                  pattern: '^[1-9]\d{0,37}$'
+      responses:
+        "202":
+          description: Pending payment intent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentIntentResponse"
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+  /payments/webhooks:
+    post:
+      operationId: receiveSignedPaymentWebhook
+      summary: Receive a raw-body, provider-signed payment webhook
+      security: []
+      parameters:
+        - in: header
+          name: X-Payment-Signature
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Verified webhook event processed or safely deduplicated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentWebhookResult"
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "422":
+          description: Signed event rejected because it does not match an active payment intent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentWebhookResult"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+
 components:
   securitySchemes:
     cookieAuth:
@@ -584,6 +678,66 @@ components:
         request_id:
           type: string
 
+    WalletResponse:
+      type: object
+      required: [wallet]
+      properties:
+        wallet:
+          type: object
+          required: [currency, ledgerBalance, reservedBalance, availableBalance, status]
+          properties:
+            currency:
+              const: IDR
+            ledgerBalance:
+              type: string
+              pattern: '^\\d+$'
+            reservedBalance:
+              type: string
+              pattern: '^\\d+$'
+            availableBalance:
+              type: string
+              pattern: '^\\d+$'
+            status:
+              type: string
+    PaymentIntentResponse:
+      type: object
+      required: [payment_intent]
+      properties:
+        payment_intent:
+          type: object
+          required: [id, provider, provider_reference, amount_idr, currency, status, expires_at, checkout_url]
+          properties:
+            id:
+              type: string
+              format: uuid
+            provider:
+              type: string
+            provider_reference:
+              type: string
+            amount_idr:
+              type: string
+              pattern: '^\\d+$'
+            currency:
+              const: IDR
+            status:
+              enum: [pending, processing, paid, failed, expired, refunded]
+            expires_at:
+              type: string
+              format: date-time
+            checkout_url:
+              type: "null"
+    PaymentWebhookResult:
+      type: object
+      required: [accepted, duplicate, status, paymentIntentId]
+      properties:
+        accepted:
+          type: boolean
+        duplicate:
+          type: boolean
+        status:
+          enum: [processed, rejected, failed]
+        paymentIntentId:
+          type: [string, "null"]
     CatalogStatus:
       type: object
       required: [source, minimum_required_models, active_canonical_chat_models, ready_for_public_catalog, last_sync]

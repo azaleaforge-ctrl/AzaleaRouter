@@ -1,5 +1,7 @@
 import { createServer } from "node:http";
 import { createDatabaseClient } from "@azalea-router/database";
+import { LocalSandboxPaymentAdapter, PaymentService, WalletService } from "@azalea-router/billing";
+import { createOpenRouterCatalogSyncHandler } from "@azalea-router/catalog";
 import { AuthRateLimiter } from "./auth/auth-rate-limiter.js";
 import { AuthSessionService } from "./auth/session-service.js";
 import { SupabaseAuthClient } from "./auth/supabase-auth-client.js";
@@ -8,15 +10,14 @@ import { createApp } from "./app.js";
 import { env } from "./config/env.js";
 import { logger } from "./lib/logger.js";
 import { createAuthRouter } from "./routes/auth.js";
+import { createBillingRouter } from "./routes/billing.js";
 
 async function start(): Promise<void> {
   const database = env.DATABASE_URL
     ? createDatabaseClient(env.DATABASE_URL)
     : undefined;
 
-  if (database) {
-    await database.$connect();
-  }
+  if (database) await database.$connect();
 
   let auth: {
     router: ReturnType<typeof createAuthRouter>;
@@ -24,9 +25,7 @@ async function start(): Promise<void> {
   } | undefined;
 
   if (env.AUTH_PROVIDER === "supabase") {
-    if (!database) {
-      throw new Error("Database is required when AUTH_PROVIDER=supabase.");
-    }
+    if (!database) throw new Error("Database is required when AUTH_PROVIDER=supabase.");
     const provider = new SupabaseAuthClient({
       url: env.SUPABASE_URL!,
       anonKey: env.SUPABASE_ANON_KEY!,
@@ -63,9 +62,29 @@ async function start(): Promise<void> {
     };
   }
 
+  let billingRouter: ReturnType<typeof createBillingRouter> | undefined;
+  if (database) {
+    const wallet = new WalletService(database);
+    const payment = env.PAYMENT_PROVIDER === "sandbox"
+      ? new PaymentService(
+          database,
+          new LocalSandboxPaymentAdapter(env.PAYMENT_SANDBOX_WEBHOOK_SECRET!),
+          { intentLifetimeSeconds: env.PAYMENT_INTENT_LIFETIME_SECONDS },
+        )
+      : undefined;
+    billingRouter = createBillingRouter({
+      database,
+      wallet,
+      ...(payment ? { payment } : {}),
+      csrfCookieName: auth?.sessionVerifier.csrfCookieName ?? "azlr_csrf",
+      allowedOrigins: env.WEB_ORIGIN ? [env.WEB_ORIGIN] : [],
+    });
+  }
+
   const app = createApp({
     ...(database ? { database } : {}),
     ...(auth ? { authRouter: auth.router, sessionVerifier: auth.sessionVerifier } : {}),
+    ...(billingRouter ? { billingRouter } : {}),
   });
   const server = createServer(app);
   server.listen(env.API_PORT, env.API_HOST, () => {

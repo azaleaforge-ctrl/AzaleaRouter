@@ -34,6 +34,24 @@ export function createJobHandlers(
     });
   }
 
+  if (database) {
+    handlers.set("wallet.cleanup-expired-reservations", async () => {
+      const result = await database.walletReservation.updateMany({
+        where: { status: "reserved", expiresAt: { lte: new Date() } },
+        data: { status: "expired" },
+      });
+      return { expired_wallet_reservations: result.count };
+    });
+
+    handlers.set("payments.cleanup-expired", async () => {
+      const result = await database.paymentIntent.updateMany({
+        where: { status: { in: ["pending", "processing"] }, expiresAt: { lte: new Date() } },
+        data: { status: "expired" },
+      });
+      return { expired_payment_intents: result.count };
+    });
+  }
+
   if (database && catalogSyncHandler) {
     handlers.set("catalog.openrouter.sync", catalogSyncHandler);
   }

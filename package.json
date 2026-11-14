@@ -21,7 +21,11 @@
     "catalog:lint": "pnpm --filter @azalea-router/catalog lint",
     "catalog:typecheck": "pnpm --filter @azalea-router/catalog typecheck",
     "catalog:build": "pnpm --filter @azalea-router/catalog build",
-    "catalog:test": "pnpm --filter @azalea-router/catalog test"
+    "catalog:test": "pnpm --filter @azalea-router/catalog test",
+    "billing:lint": "pnpm --filter @azalea-router/billing lint",
+    "billing:typecheck": "pnpm --filter @azalea-router/billing typecheck",
+    "billing:build": "pnpm --filter @azalea-router/billing build",
+    "billing:test": "pnpm --filter @azalea-router/billing test"
   },
   "dependencies": {
     "next": "16.4.6",
