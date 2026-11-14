@@ -40,6 +40,7 @@ CREATE TABLE "chat_messages" (
   "provider_slug" VARCHAR(128),
   "provider_request_id" VARCHAR(255),
   "request_id" VARCHAR(100),
+  "idempotency_key" VARCHAR(220),
   "prompt_tokens" BIGINT NOT NULL DEFAULT 0,
   "completion_tokens" BIGINT NOT NULL DEFAULT 0,
   "total_tokens" BIGINT NOT NULL DEFAULT 0,
@@ -54,6 +55,7 @@ CREATE TABLE "chat_messages" (
   CONSTRAINT "chat_messages_charge_nonnegative" CHECK ("customer_charge_idr" IS NULL OR "customer_charge_idr" >= 0),
   CONSTRAINT "chat_messages_content_object_or_array" CHECK (jsonb_typeof("content") IN ('object','array'))
 );
+CREATE UNIQUE INDEX "chat_messages_idempotency_key_key" ON "chat_messages"("idempotency_key");
 CREATE INDEX "chat_messages_conversation_created_id_idx" ON "chat_messages"("conversation_id","created_at","id");
 CREATE INDEX "chat_messages_author_created_idx" ON "chat_messages"("author_user_id","created_at");
 CREATE INDEX "chat_messages_status_created_idx" ON "chat_messages"("status","created_at");
