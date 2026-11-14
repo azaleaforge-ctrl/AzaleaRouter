@@ -86,17 +86,48 @@ test("wallet reservation is concurrency-safe and settlement posts a balanced led
       userId: user.id,
       reservationId: reservation.reservationId,
       idempotencyKey: `test-settle-${randomUUID()}`,
+      actualAmount: "60",
     });
     const repeated = await walletService.settleReservation({
       userId: user.id,
       reservationId: reservation.reservationId,
       idempotencyKey: `test-settle-repeat-${randomUUID()}`,
+      actualAmount: "60",
     });
 
     assert.equal(settled.status, "settled");
+    assert.equal(settled.amount, "100");
+    assert.equal(settled.settledAmount, "60");
     assert.equal(repeated.ledgerTransactionId, settled.ledgerTransactionId);
+    const balanceAfterPartial = await walletService.getBalance(user.id);
+    assert.equal(balanceAfterPartial.ledgerBalance, "124940");
+    assert.equal(balanceAfterPartial.reservedBalance, "0");
+
+    const zeroCostReservation = await walletService.reserve({
+      userId: user.id,
+      amount: "100",
+      idempotencyKey: `test-zero-reserve-${randomUUID()}`,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    await assert.rejects(walletService.settleReservation({
+      userId: user.id,
+      reservationId: zeroCostReservation.reservationId,
+      idempotencyKey: `test-over-reserve-${randomUUID()}`,
+      actualAmount: "101",
+    }), /SETTLEMENT_EXCEEDS_RESERVATION/);
+
+    const zeroCost = await walletService.settleReservation({
+      userId: user.id,
+      reservationId: zeroCostReservation.reservationId,
+      idempotencyKey: `test-zero-settle-${randomUUID()}`,
+      actualAmount: "0",
+    });
+    assert.equal(zeroCost.status, "settled");
+    assert.equal(zeroCost.settledAmount, "0");
+    assert.equal(zeroCost.ledgerTransactionId, null);
+
     const balance = await walletService.getBalance(user.id);
-    assert.equal(balance.ledgerBalance, "124900");
+    assert.equal(balance.ledgerBalance, "124940");
     assert.equal(balance.reservedBalance, "0");
     assert.equal(balance.availableBalance, "124900");
   } finally {
