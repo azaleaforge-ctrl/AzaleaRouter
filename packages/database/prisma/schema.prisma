@@ -830,6 +830,7 @@ model ChatMessage {
   providerSlug        String?       @map("provider_slug") @db.VarChar(128)
   providerRequestId   String?       @map("provider_request_id") @db.VarChar(255)
   requestId           String?       @map("request_id") @db.VarChar(100)
+  idempotencyKey      String?       @unique @map("idempotency_key") @db.VarChar(220)
   promptTokens        BigInt        @default(0) @map("prompt_tokens")
   completionTokens    BigInt        @default(0) @map("completion_tokens")
   totalTokens         BigInt        @default(0) @map("total_tokens")
