@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { createDatabaseClient } from "@azalea-router/database";
-import { LocalSandboxPaymentAdapter, PaymentService, WalletService } from "@azalea-router/billing";
+import { LocalSandboxPaymentAdapter, PaymentService, UsageService, WalletService } from "@azalea-router/billing";
 import { ApiKeyService } from "./auth/api-key-service.js";
 import { AuthRateLimiter } from "./auth/auth-rate-limiter.js";
 import { AuthSessionService } from "./auth/session-service.js";
@@ -14,6 +14,8 @@ import { createApiKeyRouter } from "./routes/api-keys.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { createBillingRouter } from "./routes/billing.js";
 import { createGatewayRouter } from "./routes/gateway.js";
+import { createUsageRouter } from "./routes/usage.js";
+import { createEventStreamRouter } from "./routes/events.js";
 
 async function start(): Promise<void> {
   const database = env.DATABASE_URL ? createDatabaseClient(env.DATABASE_URL) : undefined;
@@ -63,6 +65,11 @@ async function start(): Promise<void> {
   }
 
   const wallet = database ? new WalletService(database) : undefined;
+  const usage = database && wallet
+    ? new UsageService(database, wallet, {
+        replayWindowSeconds: env.USAGE_REPLAY_WINDOW_SECONDS,
+      })
+    : undefined;
   const payment = database && env.PAYMENT_PROVIDER === "sandbox"
     ? new PaymentService(
         database,
@@ -90,13 +97,32 @@ async function start(): Promise<void> {
       })
     : undefined;
 
-  const gatewayRouter = database && apiKeyService
+  const usageRouter = database && usage && auth
+    ? createUsageRouter({
+        database,
+        usage,
+        csrfCookieName: auth.sessionVerifier.csrfCookieName,
+        allowedOrigins: env.WEB_ORIGIN ? [env.WEB_ORIGIN] : [],
+        exportMaximumRows: env.USAGE_EXPORT_MAX_ROWS,
+        exportLifetimeSeconds: env.USAGE_REPLAY_WINDOW_SECONDS,
+      })
+    : undefined;
+
+  const eventsRouter = database && auth
+    ? createEventStreamRouter({
+        database,
+        replayWindowSeconds: env.USAGE_REPLAY_WINDOW_SECONDS,
+      })
+    : undefined;
+
+  const gatewayRouter = database && apiKeyService && usage
     ? createGatewayRouter({
         database,
         apiKeys: apiKeyService,
         enabled: env.GATEWAY_ENABLED,
         upstreamApproved: env.UPSTREAM_PROVIDER_APPROVED,
-        settlementReady: env.BILLING_SETTLEMENT_ENABLED,
+        settlementReady: env.BILLING_SETTLEMENT_ENABLED && env.USAGE_SETTLEMENT_ENABLED,
+        usage,
         ...(env.GATEWAY_ENABLED ? { provider: new OpenRouterProviderAdapter(env.UPSTREAM_OPENROUTER_API_KEY!) } : {}),
       })
     : undefined;
@@ -107,6 +133,8 @@ async function start(): Promise<void> {
     ...(billingRouter ? { billingRouter } : {}),
     ...(apiKeyRouter ? { apiKeyRouter } : {}),
     ...(gatewayRouter ? { gatewayRouter } : {}),
+    ...(usageRouter ? { usageRouter } : {}),
+    ...(eventsRouter ? { eventsRouter } : {}),
   });
   const server = createServer(app);
   server.listen(env.API_PORT, env.API_HOST, () => {
