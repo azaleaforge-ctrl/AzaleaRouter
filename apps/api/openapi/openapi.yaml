@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: AzaleaRouter API
-  version: 0.1.0
+  version: 0.2.0
   description: |
-    Initial backend contract. Routes are added only when their implementation,
-    authentication policy, validation and tests are available.
+    Versioned website API. Cookie authentication is enabled only when an
+    approved provider adapter and all required security configuration exist.
 servers:
   - url: /api/v1
     description: Versioned AzaleaRouter website API
@@ -21,17 +21,12 @@ paths:
             x-request-id:
               schema:
                 type: string
-              description: Request correlation identifier.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
         "500":
-          description: Unexpected server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+          $ref: "#/components/responses/ErrorResponse"
   /health/ready:
     get:
       operationId: getReadiness
@@ -50,7 +45,366 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReadinessResponse"
+  /auth/session:
+    get:
+      operationId: getAuthSession
+      summary: Read optional current browser session
+      security: []
+      responses:
+        "200":
+          description: Session state; unauthenticated is a normal response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSessionResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+  /auth/register:
+    post:
+      operationId: registerAccount
+      summary: Create account and record explicit current Terms and Privacy consent
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "202":
+          description: Registration request accepted; email verification may be required
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accepted, email_verification_required, message]
+                properties:
+                  accepted:
+                    const: true
+                  email_verification_required:
+                    type: boolean
+                  message:
+                    type: string
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "409":
+          $ref: "#/components/responses/ErrorResponse"
+        "429":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+  /auth/login:
+    post:
+      operationId: loginAccount
+      summary: Authenticate with email and password and issue opaque HttpOnly session cookie
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Authenticated session created
+          headers:
+            Set-Cookie:
+              description: HttpOnly session cookie and readable CSRF cookie
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthenticatedSessionResponse"
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "429":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+  /auth/email/verify:
+    post:
+      operationId: verifyEmail
+      summary: Redeem a one-time email verification token hash
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyEmailRequest"
+      responses:
+        "200":
+          description: Email verified and browser session created
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthenticatedSessionResponse"
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "429":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+  /auth/email/resend:
+    post:
+      operationId: resendEmailVerification
+      summary: Request another email verification message
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailChallengeRequest"
+      responses:
+        "202":
+          description: Request accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcceptedResponse"
+        "429":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+  /auth/password/forgot:
+    post:
+      operationId: requestPasswordRecovery
+      summary: Request password recovery email
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailChallengeRequest"
+      responses:
+        "202":
+          description: Generic response that does not disclose account existence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcceptedResponse"
+        "429":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+  /auth/password/reset:
+    post:
+      operationId: resetPassword
+      summary: Redeem recovery token and set a new password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetRequest"
+      responses:
+        "200":
+          description: Password changed and new browser session created
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthenticatedSessionResponse"
+        "400":
+          $ref: "#/components/responses/ErrorResponse"
+        "429":
+          $ref: "#/components/responses/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ErrorResponse"
+  /auth/refresh:
+    post:
+      operationId: refreshAuthSession
+      summary: Refresh access token under a row-locked rotating refresh session
+      security:
+        - cookieAuth: []
+        - csrfHeader: []
+      responses:
+        "200":
+          description: Browser session is valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthenticatedSessionResponse"
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+  /auth/logout:
+    post:
+      operationId: logoutAccount
+      summary: Revoke current session and clear cookies
+      security:
+        - cookieAuth: []
+        - csrfHeader: []
+      responses:
+        "204":
+          description: Session revoked
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+  /me:
+    get:
+      operationId: getCurrentAccount
+      summary: Read current account and preferences
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Current account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+  /me/profile:
+    patch:
+      operationId: updateCurrentProfile
+      summary: Update current user's profile
+      security:
+        - cookieAuth: []
+        - csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfilePatch"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [profile]
+                properties:
+                  profile:
+                    $ref: "#/components/schemas/Profile"
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+  /me/preferences:
+    patch:
+      operationId: updateCurrentPreferences
+      summary: Update current user's preferences
+      security:
+        - cookieAuth: []
+        - csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PreferencesPatch"
+      responses:
+        "200":
+          description: Updated preferences
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [preferences]
+                properties:
+                  preferences:
+                    $ref: "#/components/schemas/Preferences"
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+  /me/consents:
+    get:
+      operationId: getMyConsents
+      summary: List append-only consent history
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Consent records for current user
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [consents]
+                properties:
+                  consents:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Consent"
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+    post:
+      operationId: recordMyConsent
+      summary: Record a new versioned consent event
+      security:
+        - cookieAuth: []
+        - csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsentRequest"
+      responses:
+        "201":
+          description: Consent recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [consent]
+                properties:
+                  consent:
+                    $ref: "#/components/schemas/Consent"
+        "401":
+          $ref: "#/components/responses/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/ErrorResponse"
+        "409":
+          $ref: "#/components/responses/ErrorResponse"
 components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: __Host-azlr_session
+      description: |
+        Opaque HttpOnly session cookie. Local HTTP development uses azlr_session;
+        production requires Secure and uses the __Host- prefix. Provider access
+        and refresh tokens remain encrypted in PostgreSQL and are never exposed.
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Must equal the readable azlr_csrf cookie; mutation routes also require an allowlisted Origin.
+  responses:
+    ErrorResponse:
+      description: Standard redacted error envelope
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
   schemas:
     HealthResponse:
       type: object
@@ -98,3 +452,215 @@ components:
               type: string
             retryable:
               type: boolean
+    AcceptedResponse:
+      type: object
+      required: [accepted]
+      properties:
+        accepted:
+          const: true
+        message:
+          type: string
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password, terms_version, privacy_version, turnstile_token]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        terms_version:
+          type: string
+          maxLength: 64
+        privacy_version:
+          type: string
+          maxLength: 64
+        turnstile_token:
+          type: string
+          maxLength: 2048
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password, turnstile_token]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+          maxLength: 128
+        turnstile_token:
+          type: string
+          maxLength: 2048
+    VerifyEmailRequest:
+      type: object
+      additionalProperties: false
+      required: [token_hash]
+      properties:
+        token_hash:
+          type: string
+          minLength: 8
+          maxLength: 512
+    EmailChallengeRequest:
+      type: object
+      additionalProperties: false
+      required: [email, turnstile_token]
+      properties:
+        email:
+          type: string
+          format: email
+        turnstile_token:
+          type: string
+          maxLength: 2048
+    PasswordResetRequest:
+      type: object
+      additionalProperties: false
+      required: [token_hash, new_password]
+      properties:
+        token_hash:
+          type: string
+          minLength: 8
+          maxLength: 512
+        new_password:
+          type: string
+          minLength: 12
+          maxLength: 128
+    AuthSessionResponse:
+      type: object
+      required: [authenticated, user]
+      properties:
+        authenticated:
+          type: boolean
+        user:
+          oneOf:
+            - $ref: "#/components/schemas/PublicUser"
+            - type: "null"
+    AuthenticatedSessionResponse:
+      type: object
+      required: [authenticated, user]
+      properties:
+        authenticated:
+          const: true
+        user:
+          $ref: "#/components/schemas/PublicUser"
+        csrf_token:
+          type: string
+    PublicUser:
+      type: object
+      required: [id, email, role, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          enum: [user, support, admin, super_admin]
+        status:
+          enum: [pending_verification, active, suspended, deletion_pending, deleted]
+        email_verified:
+          type: boolean
+        profile:
+          oneOf:
+            - $ref: "#/components/schemas/Profile"
+            - type: "null"
+    MeResponse:
+      type: object
+      required: [user, preferences]
+      properties:
+        user:
+          $ref: "#/components/schemas/PublicUser"
+        preferences:
+          oneOf:
+            - $ref: "#/components/schemas/Preferences"
+            - type: "null"
+    ProfilePatch:
+      type: object
+      additionalProperties: false
+      properties:
+        display_name:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 80
+        locale:
+          type: string
+          minLength: 2
+          maxLength: 16
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 64
+    Profile:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        displayName:
+          type: [string, "null"]
+        locale:
+          type: string
+        timezone:
+          type: string
+    PreferencesPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        theme:
+          enum: [light, dark, system]
+        default_model_id:
+          type: [string, "null"]
+          maxLength: 255
+        notification_preferences:
+          type: object
+          additionalProperties:
+            type: boolean
+    Preferences:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        theme:
+          type: string
+        defaultModelId:
+          type: [string, "null"]
+        defaultRouting:
+          type: [object, "null"]
+        notificationPreferences:
+          type: [object, "null"]
+    ConsentRequest:
+      type: object
+      additionalProperties: false
+      required: [consent_type, document_version]
+      properties:
+        consent_type:
+          enum: [terms, privacy, marketing]
+        document_version:
+          type: string
+          maxLength: 64
+    Consent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        consentType:
+          type: string
+        documentVersion:
+          type: string
+        acceptedAt:
+          type: string
+          format: date-time
+        source:
+          type: string
