@@ -15,3 +15,5 @@ export { PaymentService } from "./payment-service.js";
 export type { PaymentIntentResult, WebhookProcessingResult } from "./payment-service.js";
 export { LocalSandboxPaymentAdapter } from "./payment-provider.js";
 export type { PaymentProviderAdapter, VerifiedPaymentEvent } from "./payment-provider.js";
+export { UsageService } from "./usage-service.js";
+export type { UsageStartInput, UsageStartResult, UsageFinalizationInput, UsageFinalizationResult } from "./usage-service.js";
