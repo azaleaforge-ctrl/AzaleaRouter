@@ -1401,6 +1401,87 @@ paths:
         "404": { $ref: "#/components/responses/ErrorResponse" }
 
 
+  /admin/operations/summary:
+    get:
+      operationId: getAdminOperationsSummary
+      summary: Read safe backend operations counters
+      security: [{ cookieAuth: [] }]
+      responses:
+        "200":
+          description: Current operational counters
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [as_of, counts]
+                properties:
+                  as_of: { type: string, format: date-time }
+                  counts:
+                    type: object
+                    properties:
+                      usage_reconciliation_required: { type: integer, minimum: 0 }
+                      payment_webhooks_pending_or_failed: { type: integer, minimum: 0 }
+                      outbox_events_pending: { type: integer, minimum: 0 }
+                      files_quarantined: { type: integer, minimum: 0 }
+        "401": { $ref: "#/components/responses/ErrorResponse" }
+        "403": { $ref: "#/components/responses/ErrorResponse" }
+  /admin/usage/reconciliation:
+    get:
+      operationId: listAdminUsageReconciliation
+      summary: List usage records requiring manual reconciliation
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - in: query
+          name: cursor
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Cursor-paginated reconciliation records with decimal-safe amounts
+          content:
+            application/json:
+              schema: { type: object }
+        "401": { $ref: "#/components/responses/ErrorResponse" }
+        "403": { $ref: "#/components/responses/ErrorResponse" }
+  /admin/audit-logs:
+    get:
+      operationId: listAdminAuditLogs
+      summary: Search audit metadata without exposing raw before/after snapshots
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - in: query
+          name: cursor
+          schema: { type: string, format: uuid }
+        - in: query
+          name: actor_id
+          schema: { type: string, format: uuid }
+        - in: query
+          name: action
+          schema: { type: string, minLength: 1, maxLength: 120 }
+        - in: query
+          name: resource_type
+          schema: { type: string, minLength: 1, maxLength: 80 }
+        - in: query
+          name: since
+          schema: { type: string, format: date-time }
+        - in: query
+          name: until
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Cursor-paginated audit metadata; sensitive snapshots are not returned
+          content:
+            application/json:
+              schema: { type: object }
+        "400": { $ref: "#/components/responses/ErrorResponse" }
+        "401": { $ref: "#/components/responses/ErrorResponse" }
+        "403": { $ref: "#/components/responses/ErrorResponse" }
+
 components:
   securitySchemes:
     apiKeyBearer:
