@@ -139,6 +139,7 @@ model User {
   outboxEvents        OutboxEvent[]
   usageExports        UsageExport[]
   conversations       Conversation[]
+  authoredChatMessages ChatMessage[]
   uploadedAttachments FileAttachment[] @relation("AttachmentUploader")
   notifications       Notification[]
   ownedSupportTickets SupportTicket[] @relation("SupportTicketOwner")
