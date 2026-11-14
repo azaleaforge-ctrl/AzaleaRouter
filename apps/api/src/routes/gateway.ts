@@ -210,7 +210,12 @@ export function createGatewayRouter(options: GatewayRouterOptions): Router {
 
     const providerInput: GatewayCompletionInput = {
       model: endpoint.modelVariant ?? model.sourceModelId,
-      messages: input.messages,
+      messages: input.messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+        ...(message.name === undefined ? {} : { name: message.name }),
+        ...(message.tool_call_id === undefined ? {} : { tool_call_id: message.tool_call_id }),
+      })),
       stream: input.stream,
       providerSlug: endpoint.provider.slug,
       max_tokens: maxTokens,
@@ -291,13 +296,13 @@ export function createGatewayRouter(options: GatewayRouterOptions): Router {
       const reader = upstream.body.getReader();
       const decoder = new TextDecoder();
       let partialLine = "";
-      let finalUsage: ProviderUsage | null = null;
+      const usageState: { value: ProviderUsage | null } = { value: null };
       let providerRequestId: string | undefined;
       let lastLeaseRefresh = Date.now();
 
       const consumeLine = (line: string) => {
         const parsed = readSseUsageLine(line);
-        if (parsed.usage) finalUsage = parsed.usage;
+        if (parsed.usage) usageState.value = parsed.usage;
         if (parsed.requestId) providerRequestId = parsed.requestId;
       };
 
@@ -334,6 +339,7 @@ export function createGatewayRouter(options: GatewayRouterOptions): Router {
         if (!res.writableEnded) res.end();
       }
 
+      const finalUsage = usageState.value;
       if (clientDisconnected || !finalUsage) {
         await options.usage.markPendingReconciliation({
           usageRecordId: usageStart.usageRecordId,
