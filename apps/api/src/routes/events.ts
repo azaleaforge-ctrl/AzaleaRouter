@@ -122,7 +122,7 @@ export function createEventStreamRouter(options: EventStreamOptions): Router {
     const snapshotRequired = async (reason: string) => {
       const newest = await options.database.outboxEvent.findFirst({
         where: {
-          OR: [{ userId }, { userId: null }],
+          userId,
           publishedAt: { not: null },
           expiresAt: { gt: new Date() },
         },
@@ -153,7 +153,7 @@ export function createEventStreamRouter(options: EventStreamOptions): Router {
         const events = await options.database.outboxEvent.findMany({
           where: {
             AND: [
-              { OR: [{ userId }, { userId: null }] },
+              { userId },
               {
                 OR: [
                   { occurredAt: { gt: cursor.occurredAt } },
