@@ -398,7 +398,7 @@ export class UsageService {
           where: { id: usage.id },
           data: {
             status: "pending_reconciliation",
-            reconciliationStatus: "required",
+            reconciliationStatus: "pending",
             errorCode: input.errorCode.slice(0, 80),
             completedAt: now,
           },
@@ -490,7 +490,7 @@ export class UsageService {
           where: { id: usage.id },
           data: {
             status: "pending_reconciliation",
-            reconciliationStatus: "required",
+            reconciliationStatus: "pending",
             errorCode: "ACTUAL_COST_EXCEEDS_RESERVATION",
             providerRequestId: input.providerRequestId ?? null,
             promptTokens: BigInt(input.promptTokens),
