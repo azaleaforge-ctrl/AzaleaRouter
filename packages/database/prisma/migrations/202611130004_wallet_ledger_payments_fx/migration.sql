@@ -367,7 +367,8 @@ CREATE FUNCTION "guard_payment_webhook_processing"() RETURNS trigger AS $$17625B
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;18656
+$ LANGUAGE plpgsql;
+CREATE TRIGGER "payment_webhooks_processing_guard"
   BEFORE UPDATE OR DELETE ON "payment_webhooks"
   FOR EACH ROW EXECUTE FUNCTION "guard_payment_webhook_processing"();
 
