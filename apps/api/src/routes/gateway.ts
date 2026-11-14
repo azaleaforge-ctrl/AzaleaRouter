@@ -108,7 +108,12 @@ export function createGatewayRouter(options: GatewayRouterOptions): Router {
 
     const providerInput: GatewayCompletionInput = {
       model: endpoint.modelVariant ?? model.sourceModelId,
-      messages: input.messages,
+      messages: input.messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+        ...(message.name === undefined ? {} : { name: message.name }),
+        ...(message.tool_call_id === undefined ? {} : { tool_call_id: message.tool_call_id }),
+      })),
       stream: input.stream,
       providerSlug: endpoint.provider.slug,
       ...(input.max_tokens === undefined ? {} : { max_tokens: input.max_tokens }),
