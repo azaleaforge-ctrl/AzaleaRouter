@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import type { DatabaseClient } from "@azalea-router/database";
 import { requireActiveAccount, requirePermission } from "../middleware/authorization.js";
@@ -53,7 +53,6 @@ function mapTicket(ticket: {
     updated_at: ticket.updatedAt.toISOString(),
     ...(ticket.messages ? {
       messages: ticket.messages
-        .filter((message) => message.visibility === "PUBLIC")
         .map((message) => ({
           id: message.id,
           author_user_id: message.authorUserId,
@@ -230,7 +229,7 @@ export function createSupportRouter(options: SupportRouterOptions): Router {
       await tx.supportTicket.update({
         where: { id },
         data: {
-          status: input.visibility === "internal" ? undefined : "WAITING",
+          ...(input.visibility === "internal" ? {} : { status: "WAITING" as const }),
           lastMessageAt: new Date(),
         },
       });
