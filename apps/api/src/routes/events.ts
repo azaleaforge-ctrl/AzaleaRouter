@@ -190,11 +190,12 @@ export function createEventStreamRouter(options: EventStreamOptions): Router {
       void write(`: heartbeat ${new Date().toISOString()}\n\n`);
     }, heartbeatIntervalMs);
 
-    req.once("close", () => {
+    // IncomingMessage 'close' fires once the request body has been consumed;
+    // use the response socket lifecycle so an empty GET does not end SSE early.
+    res.once("close", () => {
       closed = true;
       clearInterval(pollTimer);
       clearInterval(heartbeatTimer);
-      if (!res.writableEnded) res.end();
     });
 
     await poll();
