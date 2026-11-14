@@ -61,6 +61,89 @@ export function createJobHandlers(
     });
   }
 
+
+  if (database) {
+    handlers.set("usage.cleanup-expired", async () => {
+      const now = new Date();
+      const staleLeaseCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const staleLeases = await database.apiKeyConcurrencyLease.findMany({
+        where: { releasedAt: null, expiresAt: { lte: now } },
+        select: { id: true, usageRecordId: true },
+        take: 500,
+      });
+
+      let movedToReconciliation = 0;
+      for (const lease of staleLeases) {
+        await database.$transaction(async (tx) => {
+          const usage = await tx.usageRecord.findUnique({
+            where: { id: lease.usageRecordId },
+          });
+          if (usage && ["started", "streaming", "completed"].includes(usage.status)) {
+            await tx.usageRecord.update({
+              where: { id: usage.id },
+              data: {
+                status: "pending_reconciliation",
+                reconciliationStatus: "required",
+                errorCode: "USAGE_LEASE_EXPIRED",
+                completedAt: now,
+              },
+            });
+            await tx.outboxEvent.upsert({
+              where: { idempotencyKey: `usage.lease-expired:${usage.id}` },
+              update: {},
+              create: {
+                userId: usage.userId,
+                aggregateType: "usage_request",
+                aggregateId: usage.id,
+                eventType: "notification.created",
+                schemaVersion: 1,
+                idempotencyKey: `usage.lease-expired:${usage.id}`,
+                payloadSafe: {
+                  request_id: usage.requestId,
+                  status: "pending_reconciliation",
+                  code: "USAGE_LEASE_EXPIRED",
+                  currency: "IDR",
+                  occurred_at: now.toISOString(),
+                },
+                occurredAt: now,
+                availableAt: now,
+                publishedAt: now,
+                expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+              },
+            });
+            movedToReconciliation += 1;
+          }
+          await tx.apiKeyConcurrencyLease.updateMany({
+            where: { id: lease.id, releasedAt: null },
+            data: { releasedAt: now },
+          });
+        }, { isolationLevel: "Serializable", timeout: 15_000 });
+      }
+
+      const [expiredRateWindows, removedLeases, expiredExports, expiredOutbox] = await Promise.all([
+        database.apiKeyRateWindow.deleteMany({ where: { expiresAt: { lte: now } } }),
+        database.apiKeyConcurrencyLease.deleteMany({
+          where: {
+            OR: [
+              { expiresAt: { lte: now } },
+              { releasedAt: { lte: staleLeaseCutoff } },
+            ],
+          },
+        }),
+        database.usageExport.deleteMany({ where: { expiresAt: { lte: now } } }),
+        database.outboxEvent.deleteMany({ where: { expiresAt: { lte: now } } }),
+      ]);
+
+      return {
+        stale_leases_reconciled: movedToReconciliation,
+        deleted_api_key_rate_windows: expiredRateWindows.count,
+        deleted_concurrency_leases: removedLeases.count,
+        deleted_usage_exports: expiredExports.count,
+        deleted_outbox_events: expiredOutbox.count,
+      };
+    });
+  }
+
   if (database && catalogSyncHandler) {
     handlers.set("catalog.openrouter.sync", catalogSyncHandler);
   }

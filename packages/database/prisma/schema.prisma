@@ -51,6 +51,11 @@ model User {
   walletReservations  WalletReservation[]
   paymentIntents      PaymentIntent[]
   apiKeys             ApiKey[]
+  usageRecords        UsageRecord[]
+  usageAggregates     UsageAggregate[]
+  modelColors         ModelColorPreference[]
+  outboxEvents        OutboxEvent[]
+  usageExports        UsageExport[]
 }
 
 model UserProfile {
@@ -116,22 +121,6 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-model OutboxEvent {
-  id            String    @id @default(uuid()) @db.Uuid
-  aggregateType String    @map("aggregate_type") @db.VarChar(80)
-  aggregateId   String    @map("aggregate_id") @db.VarChar(128)
-  eventType     String    @map("event_type") @db.VarChar(120)
-  schemaVersion Int       @default(1) @map("schema_version")
-  payloadSafe   Json      @map("payload_safe") @db.JsonB
-  attempts      Int       @default(0)
-  availableAt  DateTime  @default(now()) @map("available_at") @db.Timestamptz(6)
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  publishedAt   DateTime? @map("published_at") @db.Timestamptz(6)
-
-  @@index([publishedAt, availableAt, createdAt])
-  @@index([aggregateType, aggregateId, createdAt])
-  @@map("outbox_events")
-}
 
 model IdempotencyRecord {
   id                String    @id @default(uuid()) @db.Uuid
@@ -257,6 +246,9 @@ model CatalogModel {
   @@index([isActive, name])
   @@index([developerId, isActive])
   @@map("catalog_models")
+  usageRecords        UsageRecord[]
+  usageAggregates     UsageAggregate[]
+  colorPreferences    ModelColorPreference[]
 }
 
 model CatalogEndpoint {
@@ -287,6 +279,7 @@ model CatalogEndpoint {
   @@index([modelId, isActive])
   @@index([providerId, isActive])
   @@map("catalog_endpoints")
+  usageRecords        UsageRecord[]
 }
 
 model CatalogPriceSnapshot {
@@ -306,6 +299,7 @@ model CatalogPriceSnapshot {
   @@index([endpointId, sourceFetchedAt])
   @@map("catalog_price_snapshots")
   pricingPolicies PricingPolicySnapshot[]
+  usageRecords        UsageRecord[]
 }
 
 model CatalogSyncRun {
@@ -407,6 +401,7 @@ model WalletReservation {
   walletAccountId   String   @map("wallet_account_id") @db.Uuid
   idempotencyKey    String   @unique @map("idempotency_key") @db.VarChar(128)
   amount            Decimal  @db.Decimal(38, 0)
+  settledAmount     Decimal? @map("settled_amount") @db.Decimal(38, 0)
   currency          String   @default("IDR") @db.Char(3)
   status            String   @default("reserved") @db.VarChar(16)
   expiresAt         DateTime @map("expires_at") @db.Timestamptz(6)
@@ -421,6 +416,7 @@ model WalletReservation {
   @@index([walletAccountId, status, expiresAt])
   @@index([userId, createdAt])
   @@map("wallet_reservations")
+  usageRecords        UsageRecord[]
 }
 
 model PaymentIntent {
@@ -479,6 +475,7 @@ model FxRateSnapshot {
 
   @@index([baseCurrency, quoteCurrency, sourceFetchedAt])
   @@map("fx_rate_snapshots")
+  usageRecords        UsageRecord[]
 }
 
 model PricingPolicySnapshot {
@@ -497,6 +494,7 @@ model PricingPolicySnapshot {
   @@index([catalogPriceSnapshotId, createdAt])
   @@index([fxRateSnapshotId])
   @@map("pricing_policy_snapshots")
+  usageRecords        UsageRecord[]
 }
 
 model ApiKey {
@@ -525,4 +523,185 @@ model ApiKey {
   @@index([userId, status, createdAt])
   @@index([status, expiresAt])
   @@map("api_keys")
+  usageRecords        UsageRecord[]
+  rateWindows         ApiKeyRateWindow[]
+  concurrencyLeases   ApiKeyConcurrencyLease[]
+}
+
+model UsageRecord {
+  id                    String   @id @default(uuid()) @db.Uuid
+  userId                String   @map("user_id") @db.Uuid
+  apiKeyId              String   @map("api_key_id") @db.Uuid
+  catalogModelId        String   @map("catalog_model_id") @db.Uuid
+  catalogEndpointId     String   @map("catalog_endpoint_id") @db.Uuid
+  idempotencyKey        String   @unique @map("idempotency_key") @db.VarChar(128)
+  requestId             String   @map("request_id") @db.VarChar(100)
+  providerRequestId     String?  @map("provider_request_id") @db.VarChar(255)
+  canonicalModelId      String   @map("canonical_model_id") @db.VarChar(255)
+  sourceModelId         String   @map("source_model_id") @db.VarChar(255)
+  providerSlug          String   @map("provider_slug") @db.VarChar(255)
+  source                String   @default("api") @db.VarChar(32)
+  status                String   @default("started") @db.VarChar(32)
+  reconciliationStatus  String   @default("not_required") @map("reconciliation_status") @db.VarChar(32)
+  promptTokens          BigInt   @default(0) @map("prompt_tokens")
+  completionTokens      BigInt   @default(0) @map("completion_tokens")
+  cachedTokens          BigInt   @default(0) @map("cached_tokens")
+  reasoningTokens       BigInt   @default(0) @map("reasoning_tokens")
+  totalTokens           BigInt   @default(0) @map("total_tokens")
+  reservedChargeIdr     Decimal  @default(0) @map("reserved_charge_idr") @db.Decimal(38, 0)
+  latencyMs             Int?     @map("latency_ms")
+  promptPriceUsd        Decimal? @map("prompt_price_usd") @db.Decimal(38, 24)
+  completionPriceUsd    Decimal? @map("completion_price_usd") @db.Decimal(38, 24)
+  providerCostIdr       Decimal? @map("provider_cost_idr") @db.Decimal(38, 0)
+  customerChargeIdr     Decimal? @map("customer_charge_idr") @db.Decimal(38, 0)
+  currency              String   @default("IDR") @db.Char(3)
+  catalogPriceSnapshotId String? @map("catalog_price_snapshot_id") @db.Uuid
+  fxRateSnapshotId      String?  @map("fx_rate_snapshot_id") @db.Uuid
+  pricingPolicySnapshotId String? @map("pricing_policy_snapshot_id") @db.Uuid
+  walletReservationId   String?  @map("wallet_reservation_id") @db.Uuid
+  errorCode             String?  @map("error_code") @db.VarChar(80)
+  startedAt             DateTime @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt           DateTime? @map("completed_at") @db.Timestamptz(6)
+  settledAt             DateTime? @map("settled_at") @db.Timestamptz(6)
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user                 User           @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  apiKey               ApiKey         @relation(fields: [apiKeyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  catalogModel         CatalogModel   @relation(fields: [catalogModelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  catalogEndpoint      CatalogEndpoint @relation(fields: [catalogEndpointId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  catalogPriceSnapshot CatalogPriceSnapshot? @relation(fields: [catalogPriceSnapshotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  fxRateSnapshot       FxRateSnapshot? @relation(fields: [fxRateSnapshotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  pricingPolicySnapshot PricingPolicySnapshot? @relation(fields: [pricingPolicySnapshotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  walletReservation    WalletReservation? @relation(fields: [walletReservationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  concurrencyLease     ApiKeyConcurrencyLease?
+
+  @@index([userId, startedAt])
+  @@index([apiKeyId, startedAt])
+  @@index([catalogModelId, startedAt])
+  @@index([status, reconciliationStatus, startedAt])
+  @@index([providerRequestId])
+  @@map("usage_records")
+}
+
+model UsageAggregate {
+  id                    String   @id @default(uuid()) @db.Uuid
+  userId                String   @map("user_id") @db.Uuid
+  catalogModelId        String   @map("catalog_model_id") @db.Uuid
+  periodStart           DateTime @map("period_start") @db.Timestamptz(6)
+  period                 String   @db.VarChar(16)
+  requestCount          BigInt   @default(0) @map("request_count")
+  successfulRequestCount BigInt  @default(0) @map("successful_request_count")
+  failedRequestCount    BigInt   @default(0) @map("failed_request_count")
+  promptTokens          BigInt   @default(0) @map("prompt_tokens")
+  completionTokens      BigInt   @default(0) @map("completion_tokens")
+  cachedTokens          BigInt   @default(0) @map("cached_tokens")
+  reasoningTokens       BigInt   @default(0) @map("reasoning_tokens")
+  totalTokens           BigInt   @default(0) @map("total_tokens")
+  providerCostIdr       Decimal  @default(0) @map("provider_cost_idr") @db.Decimal(38, 0)
+  customerChargeIdr     Decimal  @default(0) @map("customer_charge_idr") @db.Decimal(38, 0)
+  currency              String   @default("IDR") @db.Char(3)
+  sourceUpdatedAt       DateTime @map("source_updated_at") @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  catalogModel CatalogModel @relation(fields: [catalogModelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([userId, catalogModelId, periodStart, period])
+  @@index([userId, periodStart])
+  @@index([catalogModelId, periodStart])
+  @@map("usage_aggregates")
+}
+
+model ModelColorPreference {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  catalogModelId String   @map("catalog_model_id") @db.Uuid
+  color          String   @db.VarChar(7)
+  assignmentMethod String @default("auto") @map("assignment_method") @db.VarChar(16)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  catalogModel CatalogModel @relation(fields: [catalogModelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([userId, catalogModelId])
+  @@index([userId, updatedAt])
+  @@map("model_color_preferences")
+}
+
+model OutboxEvent {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String?   @map("user_id") @db.Uuid
+  aggregateType   String    @map("aggregate_type") @db.VarChar(64)
+  aggregateId     String    @map("aggregate_id") @db.VarChar(128)
+  eventType       String    @map("event_type") @db.VarChar(128)
+  schemaVersion   Int       @default(1) @map("schema_version")
+  idempotencyKey  String    @unique @map("idempotency_key") @db.VarChar(128)
+  payloadSafe     Json      @map("payload_safe") @db.JsonB
+  occurredAt      DateTime  @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  availableAt     DateTime  @default(now()) @map("available_at") @db.Timestamptz(6)
+  publishedAt     DateTime? @map("published_at") @db.Timestamptz(6)
+  attempts        Int       @default(0)
+  lastErrorCode   String?   @map("last_error_code") @db.VarChar(80)
+  expiresAt       DateTime? @map("expires_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([publishedAt, availableAt, createdAt])
+  @@index([userId, occurredAt])
+  @@index([aggregateType, aggregateId, createdAt])
+  @@map("outbox_events")
+}
+
+model ApiKeyRateWindow {
+  id           String   @id @default(uuid()) @db.Uuid
+  apiKeyId     String   @map("api_key_id") @db.Uuid
+  windowStart  DateTime @map("window_start") @db.Timestamptz(6)
+  requestCount Int      @default(0) @map("request_count")
+  expiresAt    DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  apiKey ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([apiKeyId, windowStart])
+  @@index([expiresAt])
+  @@map("api_key_rate_windows")
+}
+
+model ApiKeyConcurrencyLease {
+  id             String    @id @default(uuid()) @db.Uuid
+  apiKeyId       String    @map("api_key_id") @db.Uuid
+  usageRecordId  String    @unique @map("usage_record_id") @db.Uuid
+  acquiredAt     DateTime  @default(now()) @map("acquired_at") @db.Timestamptz(6)
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+  releasedAt     DateTime? @map("released_at") @db.Timestamptz(6)
+
+  apiKey ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  usageRecord UsageRecord @relation(fields: [usageRecordId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([apiKeyId, releasedAt, expiresAt])
+  @@index([expiresAt])
+  @@map("api_key_concurrency_leases")
+}
+
+model UsageExport {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  status      String    @default("completed") @db.VarChar(16)
+  filters     Json      @db.JsonB
+  rowCount    Int       @default(0) @map("row_count")
+  csvContent  String?   @map("csv_content") @db.Text
+  errorCode   String?   @map("error_code") @db.VarChar(80)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status, expiresAt])
+  @@map("usage_exports")
 }

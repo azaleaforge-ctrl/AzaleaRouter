@@ -19,6 +19,8 @@ export interface AppDependencies {
   billingRouter?: Router;
   apiKeyRouter?: Router;
   gatewayRouter?: Router;
+  usageRouter?: Router;
+  eventsRouter?: Router;
 }
 
 export function createApp(dependencies: AppDependencies = {}) {
@@ -49,6 +51,12 @@ export function createApp(dependencies: AppDependencies = {}) {
   }
   if (dependencies.billingRouter) {
     app.use("/api/v1", dependencies.billingRouter);
+  }
+  if (dependencies.usageRouter) {
+    app.use("/api/v1", dependencies.usageRouter);
+  }
+  if (dependencies.eventsRouter) {
+    app.use("/api/v1", dependencies.eventsRouter);
   }
 
   app.use("/api/v1", healthRouter);
