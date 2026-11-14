@@ -1,52 +1,50 @@
 # Backend implementation status
 
-**Last verified:** 13 November 2026 (Asia/Jakarta)  
-**Source of truth:** Backend PRD v0.4, current PR metadata and branch heads, GitHub Actions runs, and reviewed patches.  
-**Completion rule:** A stage is Done only after implementation, contracts/docs, security/privacy requirements, relevant tests and CI evidence meet its PRD exit criteria.
+**Last updated:** 14 November 2026 (Asia/Jakarta)  
+**Authority:** Backend PRD v0.4, current branch heads, PR metadata and exact GitHub Actions runs.  
+**Merge authorization:** The user authorized merge only after every BE-0..BE-9 stage is complete and verified. All backend PRs remain unmerged. No release, deployment or paid traffic is authorized.
 
-## Overall merge gate
+## Overall status
 
-The user authorized completion of BE-0 through BE-9 before any merge. Only after all stages are complete and verified may PRs be merged one at a time in dependency order. No direct commits to main, no force merge, no early merge, no production deployment/release and no paid traffic are authorized.
+The backend has advanced beyond the initial BE-1/BE-2 scaffolds. BE-1 through BE-3 have exact-head successful CI evidence. BE-4 and BE-5 have corrective commits in flight. BE-6 implementation is on a feature branch; exact-head CI is pending. BE-7..BE-9 remain to be implemented.
 
 ## Stage tracker
 
-| Workstream | Status | Current evidence / gap |
+| Stage | Status | Verified evidence / remaining gaps |
 |---|---|---|
-| BE-0 — legal and architecture decisions | In progress / Blocked for paid launch | See DECISION-LOG.md. D-01 has a local/test-only PostgreSQL + Prisma technical baseline; production hosting remains OPEN. D-02/03/04/06/07/08/09/10/12/13/14/15/18 remain OPEN. D-05 is a hard blocker: current OpenRouter Terms §7 item 4 prohibits resale of model API access/competing service absent a specific written clarification/exception; legal review is required. D-04 merchant/payment onboarding and privacy/data retention decisions also remain open. |
-| BE-1 — backend foundation | In progress | PR #2 adds Express API, BullMQ worker, Redis, safe structured logging, health/error contracts and initial OpenAPI. New packages/database adds PostgreSQL + Prisma ORM 7.10.1, local/test configuration, initial User/Profile/Preferences/Consent/Audit/Outbox/Idempotency schema, committed initial SQL migration, append-only DB triggers and URL/unit/integration test scaffolds. CI now provisions ephemeral PostgreSQL and Redis and runs Prisma validate/generate/migrate/build/test. Workspace lockfile has to be refreshed and committed; exact-head CI evidence for the database change is not yet available. Observability exporter/trace integration and production hosting/backup decisions remain open. |
-| BE-2 — authentication and RBAC | In progress | PR #4 carries provider-neutral principal/session-verifier contracts, session introspection, role/permission matrix, ownership/assigned-support checks, middleware and authorization tests. Previous exact-head run #98 passed its configured tests; rebase/CI must be refreshed after BE-1 database work. Real identity provider/session, email delivery, Turnstile Siteverify, consent persistence, register/login/logout/refresh/verification/reset/profile flows and full security/E2E tests remain outstanding. |
-| BE-3 — catalog and providers | Not started | Canonical model/developer/provider/endpoint catalog, current upstream source-backed pricing snapshots, sync worker, capability validation and safe routing metadata. Public catalog needs at least 50 distinct active canonical chat-capable models with valid pricing/endpoints; no aliases or fabricated data. |
-| BE-4 — wallet, ledger and payments | In progress | PR #7 adds integer-IDR double-entry ledger, immutable posted entries, row-locked wallet reservations, signed local-sandbox payment webhook inbox, duplicate-event protection, FX/pricing snapshot schema and BigInt fixed-point pricing. See [BE-4 readiness](./BE-4-financial-readiness.md). D-04/D-07/D-08/D-09/D-15 are OPEN; D-05 is a hard paid-production blocker. Local sandbox is forbidden in production. Immutable balanced PostgreSQL ledger, integer-IDR/decimal-safe arithmetic, pricing/FX/markup snapshots, sandbox payment/webhook/refund/reconciliation adapters, idempotency/concurrency tests. Merchant and financial policy decisions remain a paid-launch gate. |
-| BE-5 — AZL keys and gateway | Not started | Secure AZL- issuance/hash/rotation/revocation, OpenAI-compatible gateway, provider adapters, routing/fallback, streaming and accurate settlement; production upstream traffic remains blocked by D-05. |
-| BE-6 — usage and realtime | Not started | Usage records/aggregates, model color API, authenticated SSE, transactional outbox, replay cursor/expiry and reconnect/snapshot behavior. |
-| BE-7 — chat, files and content | Not started | Conversation/message lifecycle, private file upload/storage boundary, MIME validation/quarantine/scanner adapter, docs/help/blog/status/changelog, support tickets and notifications. |
-| BE-8 — admin and hardening | Not started | Granular admin APIs/RBAC, audit trail, financial reconciliation, job monitoring/alerts, privacy/security hardening, abuse/rate limits and operational controls. |
-| BE-9 — closed-beta readiness | Not started | Backup/restore drills, rollback, support/incident process, monitoring, privacy/legal recheck and evidence-backed go/no-go report. |
+| BE-0 — legal and architecture decisions | **In progress; paid launch blocked** | See [DECISION-LOG.md](./DECISION-LOG.md). D-01 PostgreSQL + Prisma is a reversible local/test baseline only. D-03 identity provider and D-04 payment provider remain open. D-05 OpenRouter written downstream permission is a hard blocker. D-06 object storage, D-07 FX source, D-08 markup, D-09 refunds/expiry/disputes, D-10 privacy/retention/legal basis, D-12 email delivery, D-14 backup/PITR/RPO/RTO and D-15 maker-checker thresholds remain open. |
+| BE-1 — backend foundation | **Code complete; CI passed** | Express API, worker/Redis/BullMQ, PostgreSQL/Prisma 7.10.1, initial identity/profile/preferences/consent/audit/outbox/idempotency migration, health/readiness, request IDs, safe structured logging, initial OpenAPI and CI. Run [#43453323097](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43453323097) passed on exact BE-1 head `2d5f3b4720be31b5db7b762f269c16e0e468dd34`; includes frozen lockfile validation. |
+| BE-2 — authentication and RBAC | **Code complete; CI passed; provider gated** | Provider-neutral verifier, opt-in Supabase Auth REST adapter, opaque session cookies, encrypted provider tokens, CSRF/Origin validation, Turnstile Siteverify/replay protection, DB-backed rate limits, register/login/verification/recovery/profile/preferences/consent routes, role/ownership policy. Run [#43456931571](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43456931571) passed on exact BE-2 head `35fc174675f60233f5d7add3ad1fdc8beb5d5fda`. Auth remains disabled by default pending D-03/D-10/D-12 and staging E2E credentials. |
+| BE-3 — model catalog and providers | **Code complete; CI passed** | OpenRouter catalog sync adapter, canonical models/developers/providers/endpoints, validated USD price snapshots and catalog read APIs; sync handler is typed and exported from package entrypoint. Run [#43543279248](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43543279248) passed on exact BE-3 head `0aca81a8f894e9333d601aedba53b53c55dec370`. Catalog sync is still feature/credential gated; no synthetic or guessed models/prices are inserted. |
+| BE-4 — wallet, ledger and payments | **In progress; corrective CI pending** | IDR wallet, immutable double-entry ledger, reservation/settlement/release, FX and pricing policy snapshots, payment intent/webhook inbox, idempotency and transaction-level protection. The migration dollar-quote and catalog package entrypoint issues have been patched. Current head `c83ddab7712d677a41709c63232cbd977ce5baf2`; exact-head CI run [#43543657886](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43543657886) is still running. Provider is local sandbox only; D-04/D-07/D-08/D-09/D-15 remain approval gates. |
+| BE-5 — AZL keys and gateway | **In progress; corrective CI pending** | Hashed AZL keys, key lifecycle/scopes/allowlists, OpenAI-compatible chat completion route, provider adapter boundary, routing metadata and usage settlement gate. Catalog export and type-safety fixes are on the latest head `d59bd3fc9192a2c3ba886e76f8e3e4495c008af6`; workflow-dispatch run [#43543726768](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43543726768) is running. Gateway/upstream flags remain disabled until D-05 is cleared. |
+| BE-6 — usage, realtime and model colors | **Implemented on feature branch; exact-head CI pending** | Actual-use wallet settlement, holds/reconciliation, usage records/aggregates, model-color API, bounded CSV export, user-scoped SSE replay, stale-lease/retention cleanup job. See [BE-6-usage-readiness.md](./BE-6-usage-readiness.md). Current branch head `8c6c25599867dfae7e6e06622f76bbaaa0acde49`; exact-head run [#43543748462](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43543748462) is running. Integration/reconnect/load tests remain outstanding. |
+| BE-7 — conversation, files and content | Not started | Conversation/message lifecycle and history, private uploads/storage adapter, MIME/size/quarantine/scanner/retention, docs/help/blog/status/changelog, support ticket and notification APIs. |
+| BE-8 — admin and hardening | Not started | Granular admin RBAC APIs, audit controls, payment/usage reconciliation console, job monitoring/alerts, abuse controls, security/privacy hardening and operational procedures. |
+| BE-9 — closed-beta readiness | Not started | Backup/restore drill, rollback, monitoring/incident/support process, privacy/legal recheck, staging E2E and evidence-backed go/no-go assessment. |
 
-## Pull request chain
+## Open pull requests
 
-| PR | Stage | Branch | Base | Status |
+| PR | Stage | Branch | Base | Current state |
 |---|---|---|---|---|
-| [#1 Backend PRD v0.4](https://github.com/azaleaforge-ctrl/AzaleaRouter/pull/1) | Requirements / BE-0 inputs | docs/backend-prd-v0.4-stage1 | main | Draft / open / not merged |
-| [#2 BE-1 foundation](https://github.com/azaleaforge-ctrl/AzaleaRouter/pull/2) | BE-1 | feat/backend-foundation-be1 | docs/backend-prd-v0.4-stage1 | Draft / open / not merged |
-| [#3 old BE-2 branch](https://github.com/azaleaforge-ctrl/AzaleaRouter/pull/3) | Superseded | feat/backend-auth-be2 | stale BE-1 base | Closed / not merged; replaced by PR #4 |
-| [#4 rebased BE-2 foundation](https://github.com/azaleaforge-ctrl/AzaleaRouter/pull/4) | BE-2 | feat/backend-auth-be2-rebased | feat/backend-foundation-be1 (older head) | Draft / open / not merged; must be refreshed after BE-1 changes |
+| [#1 Backend PRD v0.4](https://github.com/azaleaforge-ctrl/AzaleaRouter/pull/1) | Requirements / BE-0 inputs | `docs/backend-prd-v0.4-stage1` | `main` | Draft / open / not merged |
+| [#2 BE-1 foundation](https://github.com/azaleaforge-ctrl/AzaleaRouter/pull/2) | BE-1 | `feat/backend-foundation-be1` | PRD branch | Draft / open / not merged |
+| [#5 BE-2 auth/RBAC](https://github.com/azaleaforge-ctrl/AzaleaRouter/pull/5) | BE-2 | `feat/backend-auth-be2-final` | BE-1 branch | Draft / open / not merged |
+| [#6 BE-3 model catalog](https://github.com/azaleaforge-ctrl/AzaleaRouter/pull/6) | BE-3 | `feat/backend-catalog-be3` | BE-2 branch | Draft / open / not merged |
+| [#7 BE-4 wallet/ledger/payment intents](https://github.com/azaleaforge-ctrl/AzaleaRouter/pull/7) | BE-4 | `feat/backend-wallet-be4` | BE-2 branch (catalog work is represented in its changes) | Draft / open / not merged |
+| [#8 BE-5 AZL key and gateway](https://github.com/azaleaforge-ctrl/AzaleaRouter/pull/8) | BE-5 | `feat/backend-gateway-be5` | BE-4 branch | Draft / open / not merged |
+| BE-6 | Usage/realtime | `feat/backend-usage-be6-final` | BE-5 branch | Feature branch; PR not opened yet |
 
-## CI validation snapshot
+## Merge order and gates
 
-- **BE-1 before database addition:** [Run #80](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43446718047) passed frontend/API/worker lint, typecheck, build, unit and Redis integration checks on BE-1 head db9975749c27b520494b906d123d74d51a3c9cf7.
-- **BE-2 before database addition:** [Run #98](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43447170807) passed configured checks on PR #4 head 740e231fc67bdd1f39a40950435fd2e546b89d33.
-- **Run #100:** [GitHub Actions](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43447407421) passed the workflow on BE-2 documentation head 924f2177eb9d33ec227a5bfdfd447cf76bb2982f; it did not yet include the new database package.
-- The new BE-1 head adds Prisma dependency/lockfile changes and a PostgreSQL-backed migration pipeline. Its exact-head CI is pending and is the next validation gate.
-- Earlier failures were inspected and corrected: pnpm build-script approval, TypeScript TS2742 declaration emit, ESLint no-namespace, and PR #3's stale/diverged branch. No result is inferred beyond the exact runs linked above.
-- Local clone/build/test has not been run through this GitHub-only connector. CI is the available execution environment.
+1. Do not merge yet. First complete BE-6 exact-head CI and tests, then BE-7, BE-8 and BE-9.
+2. Resolve PR branch ancestry and overlap so PR dependencies are a clean, verifiable chain. PR #7 was retargeted to the BE-2 branch because its feature head already descends from BE-2; it contains the catalog changes too. Before merge, verify that PR #6 can merge first and PR #7 remains clean against the updated base.
+3. Before final merge, require green exact-head CI, clean mergeability, reviewed migration ordering, no exposed secrets, security/privacy checks and acceptance evidence for all stages.
+4. Merge one PR at a time in dependency order and verify the merge commit before proceeding.
+5. Even after BE-0..BE-9 code completion, paid gateway launch remains blocked until written D-05 authorization and finance/legal/security decisions are supplied. No production deployment/release has been made.
 
-## Current blockers and next actions
+## Validation limitations
 
-1. Keep all PRs unmerged. BE-0 through BE-9 are not complete.
-2. Retrieve and commit the workspace lockfile from the new CI run; restore pnpm install --frozen-lockfile and remove the temporary artifact-upload step.
-3. Resolve any Prisma schema/generator, migration SQL, database test or lockfile CI failures before declaring BE-1 complete.
-4. Integrate database client/repositories into BE-2 only after the persistence contract passes; do not fake provider auth, email or Turnstile.
-5. Continue BE-3 through BE-9 with exact source-backed catalog and rigorous financial/security tests.
-6. D-05/D-04, hosting region, data retention/legal basis and live-provider credentials remain hard external gates. Build and sandbox work may continue, but no paid launch.
-7. After all BE-0..BE-9 acceptance criteria, required reviews and exact-head CI pass, perform final audit and merge one PR at a time in dependency order, verifying each merge before proceeding.
+- GitHub Actions is the available execution environment; a local developer clone has not been built/tested in this session.
+- CI may use isolated test PostgreSQL/Redis and sandbox fakes. This does not verify a real merchant, production identity provider/email deliverability, production database region/backup, or paid upstream authorization.
+- A green unit/integration workflow is not a production go-live approval.

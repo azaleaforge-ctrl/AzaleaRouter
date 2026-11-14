@@ -87,3 +87,15 @@ The only adapter included in this increment is `local-sandbox`. It creates no ho
 Wallet balance is computed from the immutable balanced ledger minus active unexpired reservations. Wallet reserve/settle/release operations lock the wallet row, use idempotency keys and integer IDR. Usage pricing consumes explicit USD price and FX snapshots through BigInt fixed-point arithmetic; missing price/FX is not guessed.
 
 D-04 (merchant, gateway, channels, fees, refunds, chargebacks and reconciliation policy), D-07 (approved FX source/cadence), D-08 (markup), D-09 (expiry/refund/negative-balance), D-15 (maker-checker thresholds), and D-05 upstream permission remain unresolved. No live payment provider or paid traffic is enabled.
+
+
+## Usage, billing settlement and realtime (BE-6)
+
+- `GET /api/v1/usage/summary` returns user-scoped IDR cost/token totals for a bounded date range.
+- `GET /api/v1/usage/requests` and `GET /api/v1/usage/requests/:requestId` return user-scoped usage history/details.
+- `POST /api/v1/usage/exports` creates a time-limited CSV export; `GET /api/v1/usage/exports/:id` downloads it. Export is capped to 5,000 rows and 5 MiB, and CSV formula starters are neutralized.
+- `GET /api/v1/usage/model-colors` and `PUT /api/v1/usage/model-colors/:modelId` provide persisted per-user model chart colors.
+- `GET /api/v1/events` opens a user-scoped SSE stream with Last-Event-ID replay; default replay window is 24 hours. Expired cursors receive `snapshot.required`.
+- Gateway requests reserve an estimated charge using immutable catalog price/FX/policy snapshots, then settle actual provider token usage. Unknown upstream outcome/missing usage/charge-above-hold goes to `pending_reconciliation`; it is not silently refunded or overcharged.
+
+Usage settlement, upstream access and billing remain disabled by default. D-05 written upstream permission and D-04/D-07/D-08/D-09 finance/legal policy decisions are required before paid use. See `docs/backend/BE-6-usage-readiness.md`.
