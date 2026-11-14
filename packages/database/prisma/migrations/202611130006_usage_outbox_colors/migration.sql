@@ -196,9 +196,7 @@ ALTER TABLE "outbox_events"
 
 ALTER TABLE "outbox_events"
   ADD CONSTRAINT "outbox_events_idempotency_not_blank"
-  CHECK (length(trim("idempotency_key")) > 0),
-  ADD CONSTRAINT "outbox_events_attempts_nonnegative"
-  CHECK ("attempts" >= 0);
+  CHECK (length(trim("idempotency_key")) > 0);
 
 CREATE UNIQUE INDEX "outbox_events_idempotency_key_key" ON "outbox_events"("idempotency_key");
 CREATE INDEX "outbox_events_publish_idx" ON "outbox_events"("published_at","available_at","created_at");
