@@ -170,6 +170,125 @@ CREATE TABLE "model_color_preferences" (
   "updated_at" TIMESTAMPTZ(6) NOT NULL,
   CONSTRAINT "model_color_preferences_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "model_color_preferences_hex" CHECK ("color" ~ '^#[0-9A-Fa-f]{6}
+CREATE UNIQUE INDEX "model_color_preferences_user_model_key" ON "model_color_preferences"("user_id","catalog_model_id");
+CREATE INDEX "model_color_preferences_user_updated_idx" ON "model_color_preferences"("user_id","updated_at");
+ALTER TABLE "model_color_preferences" ADD CONSTRAINT "model_color_preferences_user_fkey"
+  FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "model_color_preferences" ADD CONSTRAINT "model_color_preferences_model_fkey"
+  FOREIGN KEY ("catalog_model_id") REFERENCES "catalog_models"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE "outbox_events"
+  ADD COLUMN "user_id" UUID,
+  ADD COLUMN "idempotency_key" VARCHAR(128),
+  ADD COLUMN "occurred_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  ADD COLUMN "last_error_code" VARCHAR(80),
+  ADD COLUMN "expires_at" TIMESTAMPTZ(6),
+  ADD COLUMN "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+UPDATE "outbox_events"
+SET "idempotency_key" = 'legacy:' || "id"::text
+WHERE "idempotency_key" IS NULL;
+
+ALTER TABLE "outbox_events"
+  ALTER COLUMN "idempotency_key" SET NOT NULL;
+
+ALTER TABLE "outbox_events"
+  ADD CONSTRAINT "outbox_events_idempotency_not_blank"
+  CHECK (length(trim("idempotency_key")) > 0),
+  ADD CONSTRAINT "outbox_events_attempts_nonnegative"
+  CHECK ("attempts" >= 0);
+
+CREATE UNIQUE INDEX "outbox_events_idempotency_key_key" ON "outbox_events"("idempotency_key");
+CREATE INDEX "outbox_events_publish_idx" ON "outbox_events"("published_at","available_at","created_at");
+CREATE INDEX "outbox_events_user_occurred_idx" ON "outbox_events"("user_id","occurred_at");
+
+ALTER TABLE "outbox_events" ADD CONSTRAINT "outbox_events_user_fkey"
+  FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+CREATE TABLE "api_key_rate_windows" (
+  "id" UUID NOT NULL,
+  "api_key_id" UUID NOT NULL,
+  "window_start" TIMESTAMPTZ(6) NOT NULL,
+  "request_count" INTEGER NOT NULL DEFAULT 0,
+  "expires_at" TIMESTAMPTZ(6) NOT NULL,
+  "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "api_key_rate_windows_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "api_key_rate_windows_count_nonnegative" CHECK ("request_count" >= 0)
+);
+CREATE UNIQUE INDEX "api_key_rate_windows_key_start_key" ON "api_key_rate_windows"("api_key_id","window_start");
+CREATE INDEX "api_key_rate_windows_expires_idx" ON "api_key_rate_windows"("expires_at");
+ALTER TABLE "api_key_rate_windows" ADD CONSTRAINT "api_key_rate_windows_api_key_fkey"
+  FOREIGN KEY ("api_key_id") REFERENCES "api_keys"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+CREATE TABLE "api_key_concurrency_leases" (
+  "id" UUID NOT NULL,
+  "api_key_id" UUID NOT NULL,
+  "usage_record_id" UUID NOT NULL,
+  "acquired_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "expires_at" TIMESTAMPTZ(6) NOT NULL,
+  "released_at" TIMESTAMPTZ(6),
+  CONSTRAINT "api_key_concurrency_leases_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX "api_key_concurrency_leases_usage_record_key" ON "api_key_concurrency_leases"("usage_record_id");
+CREATE INDEX "api_key_concurrency_leases_active_idx" ON "api_key_concurrency_leases"("api_key_id","released_at","expires_at");
+CREATE INDEX "api_key_concurrency_leases_expires_idx" ON "api_key_concurrency_leases"("expires_at");
+ALTER TABLE "api_key_concurrency_leases" ADD CONSTRAINT "api_key_concurrency_leases_api_key_fkey"
+  FOREIGN KEY ("api_key_id") REFERENCES "api_keys"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "api_key_concurrency_leases" ADD CONSTRAINT "api_key_concurrency_leases_usage_fkey"
+  FOREIGN KEY ("usage_record_id") REFERENCES "usage_records"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+CREATE TABLE "usage_exports" (
+  "id" UUID NOT NULL,
+  "user_id" UUID NOT NULL,
+  "status" VARCHAR(16) NOT NULL DEFAULT 'completed',
+  "filters" JSONB NOT NULL,
+  "row_count" INTEGER NOT NULL DEFAULT 0,
+  "csv_content" TEXT,
+  "error_code" VARCHAR(80),
+  "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "completed_at" TIMESTAMPTZ(6),
+  "expires_at" TIMESTAMPTZ(6) NOT NULL,
+  CONSTRAINT "usage_exports_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "usage_exports_status_check" CHECK ("status" IN ('completed','failed','expired')),
+  CONSTRAINT "usage_exports_row_count_nonnegative" CHECK ("row_count" >= 0)
+);
+CREATE INDEX "usage_exports_user_created_idx" ON "usage_exports"("user_id","created_at");
+CREATE INDEX "usage_exports_status_expiry_idx" ON "usage_exports"("status","expires_at");
+ALTER TABLE "usage_exports" ADD CONSTRAINT "usage_exports_user_fkey"
+  FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+CREATE FUNCTION "guard_outbox_event_mutation"() RETURNS trigger AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    IF OLD."expires_at" IS NOT NULL AND OLD."expires_at" <= CURRENT_TIMESTAMP THEN
+      RETURN OLD;
+    END IF;
+    RAISE EXCEPTION 'outbox events can only be deleted after replay retention expires';
+  END IF;
+  IF OLD."id" <> NEW."id"
+     OR OLD."user_id" IS DISTINCT FROM NEW."user_id"
+     OR OLD."aggregate_type" <> NEW."aggregate_type"
+     OR OLD."aggregate_id" <> NEW."aggregate_id"
+     OR OLD."event_type" <> NEW."event_type"
+     OR OLD."schema_version" <> NEW."schema_version"
+     OR OLD."idempotency_key" <> NEW."idempotency_key"
+     OR OLD."payload_safe" <> NEW."payload_safe"
+     OR OLD."occurred_at" <> NEW."occurred_at"
+     OR OLD."created_at" <> NEW."created_at" THEN
+    RAISE EXCEPTION 'outbox event identity and payload are immutable';
+  END IF;
+  IF NEW."attempts" < OLD."attempts"
+     OR (OLD."published_at" IS NOT NULL AND NEW."published_at" IS DISTINCT FROM OLD."published_at") THEN
+    RAISE EXCEPTION 'outbox delivery state cannot move backwards';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER "outbox_events_guard"
+  BEFORE UPDATE OR DELETE ON "outbox_events"
+  FOR EACH ROW EXECUTE FUNCTION "guard_outbox_event_mutation"();),
+  CONSTRAINT "model_color_preferences_method" CHECK ("assignment_method" IN ('auto','manual'))
 );
 CREATE UNIQUE INDEX "model_color_preferences_user_model_key" ON "model_color_preferences"("user_id","catalog_model_id");
 CREATE INDEX "model_color_preferences_user_updated_idx" ON "model_color_preferences"("user_id","updated_at");
