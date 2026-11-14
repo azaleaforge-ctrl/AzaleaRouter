@@ -21,6 +21,7 @@ export interface WalletReservationResult {
   currency: "IDR";
   status: string;
   expiresAt: Date;
+  settledAmount?: string;
   ledgerTransactionId: string | null;
 }
 
@@ -213,98 +214,150 @@ export class WalletService {
     }, { isolationLevel: "Serializable", timeout: 15_000 });
   }
 
-  async settleReservation(input: {
-    userId: string;
-    reservationId: string;
-    idempotencyKey: string;
-  }): Promise<WalletReservationResult> {
-    return this.database.$transaction(async (tx) => {
-      const reservation = await tx.walletReservation.findUnique({
-        where: { id: input.reservationId },
-      });
-      if (!reservation || reservation.userId !== input.userId) throw new Error("RESERVATION_NOT_FOUND");
-      const wallet = await lockWalletAccount(tx, input.userId);
-      if (!wallet || wallet.id !== reservation.walletAccountId) throw new Error("WALLET_NOT_FOUND");
+  async settleReservationInTransaction(
+    tx: WalletTransactionClient,
+    input: {
+      userId: string;
+      reservationId: string;
+      idempotencyKey: string;
+      actualAmount: string;
+    },
+  ): Promise<WalletReservationResult> {
+    parseIdrAmount(input.actualAmount);
+    if (input.idempotencyKey.length < 8 || input.idempotencyKey.length > 128) {
+      throw new RangeError("Settlement idempotency key must contain between 8 and 128 characters.");
+    }
 
-      if (reservation.status === "settled") {
-        if (!reservation.ledgerTransactionId) throw new Error("SETTLEMENT_LEDGER_REFERENCE_MISSING");
-        return {
-          reservationId: reservation.id,
-          idempotencyKey: reservation.idempotencyKey,
-          amount: decimalString(reservation.amount),
-          currency: "IDR",
-          status: reservation.status,
-          expiresAt: reservation.expiresAt,
-          ledgerTransactionId: reservation.ledgerTransactionId,
-        };
+    const reservation = await tx.walletReservation.findUnique({
+      where: { id: input.reservationId },
+    });
+    if (!reservation || reservation.userId !== input.userId) throw new Error("RESERVATION_NOT_FOUND");
+    const wallet = await lockWalletAccount(tx, input.userId);
+    if (!wallet || wallet.id !== reservation.walletAccountId) throw new Error("WALLET_NOT_FOUND");
+
+    const heldAmount = parseIdrAmount(decimalString(reservation.amount));
+    const actualAmount = parseIdrAmount(input.actualAmount);
+    if (actualAmount > heldAmount) throw new Error("SETTLEMENT_EXCEEDS_RESERVATION");
+
+    if (reservation.status === "settled") {
+      if (decimalString(reservation.settledAmount ?? "0") !== input.actualAmount) {
+        throw new Error("SETTLEMENT_IDEMPOTENCY_CONFLICT");
       }
-      if (reservation.status !== "reserved" || reservation.expiresAt.getTime() <= Date.now()) {
-        throw new Error("RESERVATION_NOT_SETTLEABLE");
-      }
+      return {
+        reservationId: reservation.id,
+        idempotencyKey: reservation.idempotencyKey,
+        amount: decimalString(reservation.amount),
+        settledAmount: decimalString(reservation.settledAmount ?? "0"),
+        currency: "IDR",
+        status: reservation.status,
+        expiresAt: reservation.expiresAt,
+        ledgerTransactionId: reservation.ledgerTransactionId,
+      };
+    }
 
-      const revenueAccount = await tx.ledgerAccount.upsert({
-        where: { code: "revenue.ai_usage" },
-        update: {},
-        create: {
-          code: "revenue.ai_usage",
-          name: "AI usage revenue",
-          accountType: "revenue",
-          normalBalance: "credit",
-          currency: "IDR",
-        },
-      });
-      const transaction = await tx.ledgerTransaction.create({
-        data: {
-          idempotencyKey: input.idempotencyKey,
-          transactionType: "usage_settlement",
-          currency: "IDR",
-          status: "pending",
-          referenceType: "wallet_reservation",
-          referenceId: reservation.id,
-        },
-      });
+    if (reservation.status !== "reserved" || reservation.expiresAt.getTime() <= Date.now()) {
+      throw new Error("RESERVATION_NOT_SETTLEABLE");
+    }
 
-      await tx.ledgerEntry.createMany({
-        data: [
-          {
-            ledgerTransactionId: transaction.id,
-            ledgerAccountId: wallet.ledgerAccountId,
-            direction: "debit",
-            amount: reservation.amount,
-            currency: "IDR",
-            memo: "Prepaid AI usage settlement",
-          },
-          {
-            ledgerTransactionId: transaction.id,
-            ledgerAccountId: revenueAccount.id,
-            direction: "credit",
-            amount: reservation.amount,
-            currency: "IDR",
-            memo: "AI usage revenue",
-          },
-        ],
-      });
-      await tx.ledgerTransaction.update({
-        where: { id: transaction.id },
-        data: { status: "posted", postedAt: new Date() },
-      });
+    // Zero-cost responses release the full hold without posting a zero-value
+    // ledger entry (the ledger enforces strictly positive entries).
+    if (actualAmount === 0n) {
       const updated = await tx.walletReservation.update({
         where: { id: reservation.id },
         data: {
           status: "settled",
-          ledgerTransactionId: transaction.id,
+          settledAmount: "0",
+          ledgerTransactionId: null,
         },
       });
       return {
         reservationId: updated.id,
         idempotencyKey: updated.idempotencyKey,
         amount: decimalString(updated.amount),
+        settledAmount: "0",
         currency: "IDR",
         status: updated.status,
         expiresAt: updated.expiresAt,
-        ledgerTransactionId: updated.ledgerTransactionId,
+        ledgerTransactionId: null,
       };
-    }, { isolationLevel: "Serializable", timeout: 15_000 });
+    }
+
+    const revenueAccount = await tx.ledgerAccount.upsert({
+      where: { code: "revenue.ai_usage" },
+      update: {},
+      create: {
+        code: "revenue.ai_usage",
+        name: "AI usage revenue",
+        accountType: "revenue",
+        normalBalance: "credit",
+        currency: "IDR",
+      },
+    });
+    const transaction = await tx.ledgerTransaction.create({
+      data: {
+        idempotencyKey: input.idempotencyKey,
+        transactionType: "usage_settlement",
+        currency: "IDR",
+        status: "pending",
+        referenceType: "wallet_reservation",
+        referenceId: reservation.id,
+      },
+    });
+
+    await tx.ledgerEntry.createMany({
+      data: [
+        {
+          ledgerTransactionId: transaction.id,
+          ledgerAccountId: wallet.ledgerAccountId,
+          direction: "debit",
+          amount: input.actualAmount,
+          currency: "IDR",
+          memo: "Prepaid AI usage settlement",
+        },
+        {
+          ledgerTransactionId: transaction.id,
+          ledgerAccountId: revenueAccount.id,
+          direction: "credit",
+          amount: input.actualAmount,
+          currency: "IDR",
+          memo: "AI usage revenue",
+        },
+      ],
+    });
+    await tx.ledgerTransaction.update({
+      where: { id: transaction.id },
+      data: { status: "posted", postedAt: new Date() },
+    });
+    const updated = await tx.walletReservation.update({
+      where: { id: reservation.id },
+      data: {
+        status: "settled",
+        settledAmount: input.actualAmount,
+        ledgerTransactionId: transaction.id,
+      },
+    });
+    return {
+      reservationId: updated.id,
+      idempotencyKey: updated.idempotencyKey,
+      amount: decimalString(updated.amount),
+      settledAmount: input.actualAmount,
+      currency: "IDR",
+      status: updated.status,
+      expiresAt: updated.expiresAt,
+      ledgerTransactionId: updated.ledgerTransactionId,
+    };
+  }
+
+  async settleReservation(input: {
+    userId: string;
+    reservationId: string;
+    idempotencyKey: string;
+    actualAmount: string;
+  }): Promise<WalletReservationResult> {
+    return this.database.$transaction(
+      (tx) => this.settleReservationInTransaction(tx, input),
+      { isolationLevel: "Serializable", timeout: 15_000 },
+    );
   }
 
   async releaseReservation(userId: string, reservationId: string): Promise<WalletReservationResult> {
