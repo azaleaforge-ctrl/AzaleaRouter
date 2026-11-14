@@ -52,12 +52,14 @@ test("support role cannot access admin operations or audit data", async () => {
   const database = {} as unknown as DatabaseClient;
   const { server, baseUrl } = await startAdminServer(database);
   try {
-    const [operations, audit] = await Promise.all([
+    const [operations, audit, user] = await Promise.all([
       fetch(`${baseUrl}/api/v1/admin/operations/summary`, { headers: { "x-test-role": "support" } }),
       fetch(`${baseUrl}/api/v1/admin/audit-logs`, { headers: { "x-test-role": "support" } }),
+      fetch(`${baseUrl}/api/v1/admin/operations/summary`, { headers: { "x-test-role": "user" } }),
     ]);
     assert.equal(operations.status, 403);
     assert.equal(audit.status, 403);
+    assert.equal(user.status, 403);
   } finally {
     await closeServer(server);
   }
@@ -97,25 +99,40 @@ test("audit list omits raw before/after JSON and uses a stable bounded cursor", 
     auditLog: {
       findMany: async (args: unknown) => {
         query = args;
-        return [{
-          id: "00000000-0000-4000-8000-000000000001",
-          actorId: "00000000-0000-4000-8000-000000000002",
-          actorRole: "admin",
-          action: "user.suspend",
-          resourceType: "user",
-          resourceId: "00000000-0000-4000-8000-000000000003",
-          requestId: "request-123",
-          reason: "policy review",
-          beforeJson: { secret: "must-not-leak" },
-          afterJson: { private_value: "must-not-leak" },
-          createdAt: new Date("2026-11-14T00:00:00.000Z"),
-        }];
+        return [
+          {
+            id: "00000000-0000-4000-8000-000000000001",
+            actorId: "00000000-0000-4000-8000-000000000002",
+            actorRole: "admin",
+            action: "user.suspend",
+            resourceType: "user",
+            resourceId: "00000000-0000-4000-8000-000000000003",
+            requestId: "request-123",
+            reason: "policy review",
+            beforeJson: { secret: "must-not-leak" },
+            afterJson: { private_value: "must-not-leak" },
+            createdAt: new Date("2026-11-14T00:00:00.000Z"),
+          },
+          {
+            id: "00000000-0000-4000-8000-000000000004",
+            actorId: null,
+            actorRole: null,
+            action: "auth.login",
+            resourceType: "session",
+            resourceId: null,
+            requestId: null,
+            reason: null,
+            beforeJson: null,
+            afterJson: null,
+            createdAt: new Date("2026-11-13T00:00:00.000Z"),
+          },
+        ];
       },
     },
   } as unknown as DatabaseClient;
   const { server, baseUrl } = await startAdminServer(database);
   try {
-    const response = await fetch(`${baseUrl}/api/v1/admin/audit-logs?limit=10&action=user.suspend`, {
+    const response = await fetch(`${baseUrl}/api/v1/admin/audit-logs?limit=1&action=user.suspend`, {
       headers: { "x-test-role": "admin" },
     });
     const body = await response.json() as { data: Array<Record<string, unknown>>; next_cursor: string | null };
@@ -126,8 +143,8 @@ test("audit list omits raw before/after JSON and uses a stable bounded cursor", 
     assert.equal(body.data[0]?.reason_present, true);
     assert.equal("beforeJson" in (body.data[0] ?? {}), false);
     assert.equal(JSON.stringify(body).includes("must-not-leak"), false);
-    assert.equal(body.next_cursor, null);
-    assert.equal((query as { take: number }).take, 11);
+    assert.equal(body.next_cursor, "00000000-0000-4000-8000-000000000001");
+    assert.equal((query as { take: number }).take, 2);
   } finally {
     await closeServer(server);
   }
@@ -166,6 +183,21 @@ test("usage reconciliation response serializes decimal and bigint values as stri
     assert.equal(body.data[0]?.prompt_tokens, "12");
     assert.equal(body.data[0]?.reserved_charge_idr, "1500");
     assert.equal(body.data[0]?.customer_charge_idr, null);
+  } finally {
+    await closeServer(server);
+  }
+});
+
+
+test("audit filters reject an inverted time range before querying the database", async () => {
+  const database = {} as unknown as DatabaseClient;
+  const { server, baseUrl } = await startAdminServer(database);
+  try {
+    const response = await fetch(
+      `${baseUrl}/api/v1/admin/audit-logs?since=2026-11-14T10:00:00Z&until=2026-11-14T09:00:00Z`,
+      { headers: { "x-test-role": "admin" } },
+    );
+    assert.equal(response.status, 400);
   } finally {
     await closeServer(server);
   }
