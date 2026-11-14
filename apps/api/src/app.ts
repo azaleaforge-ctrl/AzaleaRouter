@@ -10,6 +10,12 @@ import { createSessionResolver } from "./middleware/session-resolver.js";
 import { createCorsMiddleware } from "./middleware/cors.js";
 import { authUnavailableRouter } from "./routes/auth-unavailable.js";
 import { createCatalogRouter } from "./routes/catalog.js";
+import type { FileRouterOptions } from "./routes/files.js";
+import { createFileRouter } from "./routes/files.js";
+import { createConversationRouter } from "./routes/conversations.js";
+import { createNotificationRouter } from "./routes/notifications.js";
+import { createSupportRouter } from "./routes/support.js";
+import { createContentRouter } from "./routes/content.js";
 import { healthRouter } from "./routes/health.js";
 
 export interface AppDependencies {
@@ -21,6 +27,11 @@ export interface AppDependencies {
   gatewayRouter?: Router;
   usageRouter?: Router;
   eventsRouter?: Router;
+  conversationRouter?: Router;
+  fileRouter?: Router;
+  notificationRouter?: Router;
+  supportRouter?: Router;
+  contentRouter?: Router;
 }
 
 export function createApp(dependencies: AppDependencies = {}) {
@@ -57,6 +68,21 @@ export function createApp(dependencies: AppDependencies = {}) {
   }
   if (dependencies.eventsRouter) {
     app.use("/api/v1", dependencies.eventsRouter);
+  }
+  if (dependencies.conversationRouter) {
+    app.use("/api/v1", dependencies.conversationRouter);
+  }
+  if (dependencies.fileRouter) {
+    app.use("/api/v1", dependencies.fileRouter);
+  }
+  if (dependencies.notificationRouter) {
+    app.use("/api/v1", dependencies.notificationRouter);
+  }
+  if (dependencies.supportRouter) {
+    app.use("/api/v1", dependencies.supportRouter);
+  }
+  if (dependencies.contentRouter) {
+    app.use("/api/v1", dependencies.contentRouter);
   }
 
   app.use("/api/v1", healthRouter);
