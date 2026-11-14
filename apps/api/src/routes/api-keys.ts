@@ -12,7 +12,7 @@ export function createApiKeyRouter(
   options: { csrfCookieName: string; allowedOrigins: string[] },
 ): Router {
   const router = Router();
-  const csrf = requireCsrf(options);
+  const csrf = requireCsrf({ cookieName: options.csrfCookieName, allowedOrigins: options.allowedOrigins });
 
   router.get("/me/api-keys", requireActiveAccount(), async (req, res) => {
     res.status(200).json({ data: await service.list(req.auth!.userId) });
