@@ -239,7 +239,13 @@ export function createGatewayRouter(options: GatewayRouterOptions): Router {
         ? await options.provider.stream(providerInput, controller.signal)
         : await options.provider.complete(providerInput, controller.signal);
     } catch {
-      await options.usage.fail({ usageRecordId: usageStart.usageRecordId, errorCode: "UPSTREAM_TRANSPORT_FAILED" });
+      // A transport error can happen after the provider accepted the request.
+      // Keep the reservation pending for reconciliation rather than refunding a
+      // charge whose upstream outcome is not known.
+      await options.usage.markPendingReconciliation({
+        usageRecordId: usageStart.usageRecordId,
+        errorCode: "UPSTREAM_TRANSPORT_RESULT_UNKNOWN",
+      });
       throw new HttpError(503, "UPSTREAM_UNAVAILABLE", "The model provider is temporarily unavailable.");
     }
 
