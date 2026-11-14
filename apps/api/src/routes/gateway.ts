@@ -127,6 +127,14 @@ export function createGatewayRouter(options: GatewayRouterOptions): Router {
       throw new HttpError(403, "API_KEY_SCOPE_FORBIDDEN", "This API key does not have chat completion permission.");
     }
 
+    if (!options.enabled || !options.upstreamApproved || !options.settlementReady || !options.provider) {
+      throw new HttpError(
+        503,
+        "GATEWAY_DISABLED",
+        "The AI gateway is not enabled. Upstream commercial approval and usage settlement are required.",
+      );
+    }
+
     const input = chatCompletionSchema.parse(req.body);
     const model = await options.database.catalogModel.findFirst({
       where: {
@@ -171,14 +179,6 @@ export function createGatewayRouter(options: GatewayRouterOptions): Router {
       maxTokens > endpoint.maxCompletionTokens
     ) {
       throw new HttpError(400, "MAX_TOKENS_EXCEEDED", "max_tokens exceeds the selected endpoint's completion limit.");
-    }
-
-    if (!options.enabled || !options.upstreamApproved || !options.settlementReady || !options.provider) {
-      throw new HttpError(
-        503,
-        "GATEWAY_DISABLED",
-        "The AI gateway is not enabled. Upstream commercial approval and usage settlement are required.",
-      );
     }
 
     const promptText = input.messages.map((message) => message.content).join("\n");
