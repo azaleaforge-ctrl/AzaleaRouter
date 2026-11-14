@@ -49,6 +49,8 @@ const envSchema = z.object({
   PAYMENT_PROVIDER_APPROVED: booleanFromEnv.default(false),
   PAYMENT_SANDBOX_WEBHOOK_SECRET: z.string().min(32).optional(),
   PAYMENT_INTENT_LIFETIME_SECONDS: z.coerce.number().int().min(60).max(86_400).default(1_800),
+  FILE_UPLOAD_ENABLED: booleanFromEnv.default(false),
+  PRIVATE_UPLOAD_DIR: z.string().trim().min(1).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -120,6 +122,15 @@ if (value.AUTH_PROVIDER === "supabase") {
   }
   if (encryptionKey.length !== 32) {
     throw new Error("AUTH_TOKEN_ENCRYPTION_KEY must be base64-encoded 32-byte key material.");
+  }
+}
+
+if (value.FILE_UPLOAD_ENABLED) {
+  if (!value.PRIVATE_UPLOAD_DIR) {
+    throw new Error("FILE_UPLOAD_ENABLED requires PRIVATE_UPLOAD_DIR.");
+  }
+  if (value.NODE_ENV === "production") {
+    throw new Error("Local private file storage is forbidden in production; select an approved private object storage and scanner first.");
   }
 }
 
