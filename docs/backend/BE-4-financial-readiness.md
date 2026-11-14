@@ -59,3 +59,8 @@ The local sandbox adapter is for integration tests only. It is not a selected pa
 - Obtain legal and commercial clearance D-05 before any paid upstream access.
 
 A green CI run can verify code paths and ephemeral PostgreSQL integrity; it cannot approve a merchant agreement, FX source, legal policy or production money movement.
+
+
+## Exact-head validation note — 14 November 2026
+
+The earlier CI run [#43543657886](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43543657886) passed on commit `c83ddab7712d677a41709c63232cbd977ce5baf2`. The current BE-4 branch head includes a later workspace lockfile synchronization commit, so that earlier pass is not exact-head evidence for the current branch. Re-run the full workflow on the latest branch head before treating BE-4 as verified. No production merchant, FX, markup, refund/dispute or maker-checker decision is approved by this note.
