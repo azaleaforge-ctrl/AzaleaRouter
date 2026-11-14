@@ -40,6 +40,9 @@ const envSchema = z.object({
   GATEWAY_ENABLED: booleanFromEnv.default(false),
   UPSTREAM_PROVIDER_APPROVED: booleanFromEnv.default(false),
   BILLING_SETTLEMENT_ENABLED: booleanFromEnv.default(false),
+  USAGE_SETTLEMENT_ENABLED: booleanFromEnv.default(false),
+  USAGE_REPLAY_WINDOW_SECONDS: z.coerce.number().int().min(60).max(7 * 24 * 60 * 60).default(86_400),
+  USAGE_EXPORT_MAX_ROWS: z.coerce.number().int().min(100).max(20_000).default(5_000),
   UPSTREAM_OPENROUTER_API_KEY: z.string().min(1).optional(),
   UPSTREAM_COMMERCIAL_APPROVAL_REFERENCE: z.string().min(8).max(255).optional(),
   PAYMENT_PROVIDER: z.enum(["disabled", "sandbox"]).default("disabled"),
@@ -124,8 +127,8 @@ if (value.GATEWAY_ENABLED) {
   if (!value.UPSTREAM_PROVIDER_APPROVED || !value.UPSTREAM_COMMERCIAL_APPROVAL_REFERENCE) {
     throw new Error("Gateway activation requires documented upstream commercial approval.");
   }
-  if (!value.BILLING_SETTLEMENT_ENABLED) {
-    throw new Error("Gateway activation requires the usage reservation and settlement system.");
+  if (!value.BILLING_SETTLEMENT_ENABLED || !value.USAGE_SETTLEMENT_ENABLED) {
+    throw new Error("Gateway activation requires wallet and usage reservation/settlement to be enabled.");
   }
   if (!value.UPSTREAM_OPENROUTER_API_KEY) {
     throw new Error("Gateway activation requires an upstream credential in server-side secret storage.");
