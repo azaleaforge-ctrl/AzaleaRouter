@@ -212,6 +212,12 @@ importers:
 
   apps/api:
     dependencies:
+      '@azalea-router/billing':
+        specifier: workspace:*
+        version: link:../../packages/billing
+      '@azalea-router/catalog':
+        specifier: workspace:*
+        version: link:../../packages/catalog
       '@azalea-router/database':
         specifier: workspace:*
         version: link:../../packages/database
@@ -243,6 +249,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@azalea-router/catalog':
+        specifier: workspace:*
+        version: link:../../packages/catalog
       '@azalea-router/database':
         specifier: workspace:*
         version: link:../../packages/database
@@ -258,6 +267,44 @@ importers:
         version: 24.19.2
       tsx:
         specifier: ^4.20.6
+        version: 4.23.15
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/billing:
+    dependencies:
+      '@azalea-router/database':
+        specifier: workspace:*
+        version: link:../database
+      zod:
+        specifier: ^4.1.12
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.2
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/catalog:
+    dependencies:
+      '@azalea-router/database':
+        specifier: workspace:*
+        version: link:../database
+      zod:
+        specifier: ^4.1.12
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.2
+      tsx:
+        specifier: ^4.23.15
         version: 4.23.15
       typescript:
         specifier: ^5.9.3
