@@ -141,7 +141,7 @@ export function createSupportRouter(options: SupportRouterOptions): Router {
     const more = tickets.length > query.limit;
     const page = more ? tickets.slice(0, query.limit) : tickets;
     res.status(200).json({
-      data: page.map(mapTicket),
+      data: page.map((ticket) => mapTicket(ticket)),
       next_cursor: more ? page.at(-1)?.id ?? null : null,
     });
   });
@@ -197,7 +197,7 @@ export function createSupportRouter(options: SupportRouterOptions): Router {
       orderBy: [{ priority: "desc" }, { lastMessageAt: "asc" }],
       take: 100,
     });
-    res.status(200).json({ data: tickets.map(mapTicket) });
+    res.status(200).json({ data: tickets.map((ticket) => mapTicket(ticket)) });
   });
 
   router.get("/support/assigned/:id", requirePermission("support:tickets:read:assigned"), async (req, res) => {
