@@ -215,8 +215,12 @@ export function createUsageRouter(options: UsageRouterOptions): Router {
   });
 
   router.get("/usage/requests/:requestId", active, async (req, res) => {
+    const parsedRequestId = z.string().regex(/^[a-zA-Z0-9._:-]{1,100}$/).safeParse(req.params.requestId);
+    if (!parsedRequestId.success) {
+      throw new HttpError(400, "USAGE_REQUEST_ID_INVALID", "Usage request identifier is invalid.");
+    }
     const record = await options.database.usageRecord.findFirst({
-      where: { userId: req.auth!.userId, requestId: req.params.requestId },
+      where: { userId: req.auth!.userId, requestId: parsedRequestId.data },
     });
     if (!record) throw new HttpError(404, "USAGE_REQUEST_NOT_FOUND", "Usage request was not found.");
     res.status(200).json({ data: mapUsageRecord(record) });
@@ -225,8 +229,9 @@ export function createUsageRouter(options: UsageRouterOptions): Router {
   router.post("/usage/exports", active, csrf, async (req, res) => {
     const input = rangeSchema.parse(req.body);
     validateRange(input.from, input.to);
-    const from = input.from ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const to = input.to ?? new Date();
+    const now = new Date();
+    const from = input.from ?? new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const to = input.to ?? now;
     const rows = await options.database.usageRecord.findMany({
       where: {
         userId: req.auth!.userId,
