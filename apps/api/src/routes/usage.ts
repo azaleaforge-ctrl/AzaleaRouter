@@ -37,7 +37,8 @@ export function csvCell(value: unknown): string {
   const text = value === null || value === undefined ? "" : String(value);
   // Prefix spreadsheet formula starters after optional whitespace. CSV quoting
   // alone does not stop Excel/LibreOffice from evaluating formula cells.
-  const safe = /^[\\t\\r ]*[=+\\-@]/.test(text) ? `'${text}` : text;
+  const trimmed = text.trimStart();
+  const safe = ["=", "+", "-", "@"].some((prefix) => trimmed.startsWith(prefix)) ? `'${text}` : text;
   return `"${safe.replaceAll('"', '""')}"`;
 }
 
@@ -257,7 +258,9 @@ export function createUsageRouter(options: UsageRouterOptions): Router {
       ]),
     ];
     const csv = csvRows.map((row) => row.map(csvCell).join(",")).join("\r\n") + "\r\n";
-    const now = new Date();
+    if (Buffer.byteLength(csv, "utf8") > maximumExportBytes) {
+      throw new HttpError(413, "USAGE_EXPORT_TOO_LARGE", "The CSV export exceeds the 5 MiB limit. Narrow the date range.");
+    }
     const created = await options.database.usageExport.create({
       data: {
         userId: req.auth!.userId,
