@@ -66,7 +66,7 @@ test("support role cannot access admin operations or audit data", async () => {
 test("operations summary returns database-backed counts without exposing event payloads", async () => {
   const calls: string[] = [];
   const database = {
-    usageRecord: { count: async (args: unknown) => { calls.push("usage"); assert.deepEqual(args, { where: { reconciliationStatus: "required" } }); return 2; } },
+    usageRecord: { count: async (args: unknown) => { calls.push("usage"); assert.deepEqual(args, { where: { reconciliationStatus: "pending" } }); return 2; } },
     paymentWebhook: { count: async () => { calls.push("payments"); return 3; } },
     outboxEvent: { count: async () => { calls.push("outbox"); return 4; } },
     fileAttachment: { count: async () => { calls.push("files"); return 5; } },
@@ -142,7 +142,7 @@ test("usage reconciliation response serializes decimal and bigint values as stri
         canonicalModelId: "vendor/model",
         providerSlug: "provider",
         status: "pending_reconciliation",
-        reconciliationStatus: "required",
+        reconciliationStatus: "pending",
         promptTokens: 12n,
         completionTokens: 3n,
         totalTokens: 15n,
