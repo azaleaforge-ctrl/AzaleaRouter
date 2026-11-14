@@ -45,7 +45,7 @@ export function createAdminRouter(options: AdminRouterOptions): Router {
       filesQuarantined,
     ] = await Promise.all([
       options.database.usageRecord.count({
-        where: { reconciliationStatus: "required" },
+        where: { reconciliationStatus: "pending" },
       }),
       options.database.paymentWebhook.count({
         where: { status: { in: ["received", "failed"] } },
@@ -75,7 +75,7 @@ export function createAdminRouter(options: AdminRouterOptions): Router {
   router.get("/admin/usage/reconciliation", requirePermission("operations:read"), async (req, res) => {
     const query = pageSchema.parse(req.query);
     const rows = await options.database.usageRecord.findMany({
-      where: { reconciliationStatus: "required" },
+      where: { reconciliationStatus: "pending" },
       orderBy: [{ startedAt: "desc" }, { id: "desc" }],
       take: query.limit + 1,
       ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
