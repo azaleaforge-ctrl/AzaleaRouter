@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { DatabaseClient } from "@azalea-router/database";
-import type { UsageService } from "@azalea-router/billing";
+import type { UsageService, UsageStartResult } from "@azalea-router/billing";
 import type { ApiKeyService } from "../auth/api-key-service.js";
 import { createApiKeyAuthentication } from "../middleware/api-key-authentication.js";
 import { HttpError } from "../lib/http-error.js";
@@ -189,7 +189,7 @@ export function createGatewayRouter(options: GatewayRouterOptions): Router {
 
     const requestId = req.requestId;
     const idempotencyKey = req.header("idempotency-key")?.trim() || requestId;
-    let usageStart;
+    let usageStart: UsageStartResult;
     try {
       usageStart = await options.usage.begin({
         userId: key.userId,
