@@ -149,12 +149,15 @@ export class WalletService {
     };
   }
 
-  async reserve(input: {
-    userId: string;
-    amount: string;
-    idempotencyKey: string;
-    expiresAt: Date;
-  }): Promise<WalletReservationResult> {
+  async reserveInTransaction(
+    tx: WalletTransactionClient,
+    input: {
+      userId: string;
+      amount: string;
+      idempotencyKey: string;
+      expiresAt: Date;
+    },
+  ): Promise<WalletReservationResult> {
     parseIdrAmount(input.amount);
     if (input.amount === "0") throw new RangeError("Reservation amount must be greater than zero.");
     if (input.idempotencyKey.length < 8 || input.idempotencyKey.length > 128) {
@@ -162,56 +165,67 @@ export class WalletService {
     }
     if (input.expiresAt.getTime() <= Date.now()) throw new RangeError("Reservation expiry must be in the future.");
 
-    return this.database.$transaction(async (tx) => {
-      const existing = await tx.walletReservation.findUnique({
-        where: { idempotencyKey: input.idempotencyKey },
-      });
-      if (existing) {
-        if (existing.userId !== input.userId || decimalString(existing.amount) !== input.amount) {
-          throw new Error("IDEMPOTENCY_KEY_CONFLICT");
-        }
-        return {
-          reservationId: existing.id,
-          idempotencyKey: existing.idempotencyKey,
-          amount: decimalString(existing.amount),
-          currency: "IDR",
-          status: existing.status,
-          expiresAt: existing.expiresAt,
-          ledgerTransactionId: existing.ledgerTransactionId,
-        };
+    const existing = await tx.walletReservation.findUnique({
+      where: { idempotencyKey: input.idempotencyKey },
+    });
+    if (existing) {
+      if (existing.userId !== input.userId || decimalString(existing.amount) !== input.amount) {
+        throw new Error("IDEMPOTENCY_KEY_CONFLICT");
       }
-
-      const wallet = await lockWalletAccount(tx, input.userId);
-      if (!wallet) throw new Error("WALLET_NOT_FOUND");
-      if (wallet.status !== "active" || wallet.currency !== "IDR") throw new Error("WALLET_NOT_ACTIVE");
-
-      const balance = calculateBalance(await readBalanceRows(tx, wallet.ledgerAccountId, wallet.id, new Date()));
-      if (parseIdrAmount(balance.availableBalance) < parseIdrAmount(input.amount)) {
-        throw new Error("INSUFFICIENT_FUNDS");
-      }
-
-      const reservation = await tx.walletReservation.create({
-        data: {
-          userId: input.userId,
-          walletAccountId: wallet.id,
-          idempotencyKey: input.idempotencyKey,
-          amount: input.amount,
-          currency: "IDR",
-          status: "reserved",
-          expiresAt: input.expiresAt,
-        },
-      });
-
       return {
-        reservationId: reservation.id,
-        idempotencyKey: reservation.idempotencyKey,
-        amount: decimalString(reservation.amount),
+        reservationId: existing.id,
+        idempotencyKey: existing.idempotencyKey,
+        amount: decimalString(existing.amount),
+        ...(existing.settledAmount === null ? {} : { settledAmount: decimalString(existing.settledAmount) }),
         currency: "IDR",
-        status: reservation.status,
-        expiresAt: reservation.expiresAt,
-        ledgerTransactionId: reservation.ledgerTransactionId,
+        status: existing.status,
+        expiresAt: existing.expiresAt,
+        ledgerTransactionId: existing.ledgerTransactionId,
       };
-    }, { isolationLevel: "Serializable", timeout: 15_000 });
+    }
+
+    const wallet = await lockWalletAccount(tx, input.userId);
+    if (!wallet) throw new Error("WALLET_NOT_FOUND");
+    if (wallet.status !== "active" || wallet.currency !== "IDR") throw new Error("WALLET_NOT_ACTIVE");
+
+    const balance = calculateBalance(await readBalanceRows(tx, wallet.ledgerAccountId, wallet.id, new Date()));
+    if (parseIdrAmount(balance.availableBalance) < parseIdrAmount(input.amount)) {
+      throw new Error("INSUFFICIENT_FUNDS");
+    }
+
+    const reservation = await tx.walletReservation.create({
+      data: {
+        userId: input.userId,
+        walletAccountId: wallet.id,
+        idempotencyKey: input.idempotencyKey,
+        amount: input.amount,
+        currency: "IDR",
+        status: "reserved",
+        expiresAt: input.expiresAt,
+      },
+    });
+
+    return {
+      reservationId: reservation.id,
+      idempotencyKey: reservation.idempotencyKey,
+      amount: decimalString(reservation.amount),
+      currency: "IDR",
+      status: reservation.status,
+      expiresAt: reservation.expiresAt,
+      ledgerTransactionId: reservation.ledgerTransactionId,
+    };
+  }
+
+  async reserve(input: {
+    userId: string;
+    amount: string;
+    idempotencyKey: string;
+    expiresAt: Date;
+  }): Promise<WalletReservationResult> {
+    return this.database.$transaction(
+      (tx) => this.reserveInTransaction(tx, input),
+      { isolationLevel: "Serializable", timeout: 15_000 },
+    );
   }
 
   async settleReservationInTransaction(
@@ -360,36 +374,47 @@ export class WalletService {
     );
   }
 
-  async releaseReservation(userId: string, reservationId: string): Promise<WalletReservationResult> {
-    return this.database.$transaction(async (tx) => {
-      const reservation = await tx.walletReservation.findUnique({ where: { id: reservationId } });
-      if (!reservation || reservation.userId !== userId) throw new Error("RESERVATION_NOT_FOUND");
-      await lockWalletAccount(tx, userId);
-      if (reservation.status === "released" || reservation.status === "expired") {
-        return {
-          reservationId: reservation.id,
-          idempotencyKey: reservation.idempotencyKey,
-          amount: decimalString(reservation.amount),
-          currency: "IDR",
-          status: reservation.status,
-          expiresAt: reservation.expiresAt,
-          ledgerTransactionId: reservation.ledgerTransactionId,
-        };
-      }
-      if (reservation.status !== "reserved") throw new Error("RESERVATION_NOT_RELEASABLE");
-      const updated = await tx.walletReservation.update({
-        where: { id: reservation.id },
-        data: { status: "released" },
-      });
+  async releaseReservationInTransaction(
+    tx: WalletTransactionClient,
+    userId: string,
+    reservationId: string,
+  ): Promise<WalletReservationResult> {
+    const reservation = await tx.walletReservation.findUnique({ where: { id: reservationId } });
+    if (!reservation || reservation.userId !== userId) throw new Error("RESERVATION_NOT_FOUND");
+    await lockWalletAccount(tx, userId);
+    if (reservation.status === "released" || reservation.status === "expired") {
       return {
-        reservationId: updated.id,
-        idempotencyKey: updated.idempotencyKey,
-        amount: decimalString(updated.amount),
+        reservationId: reservation.id,
+        idempotencyKey: reservation.idempotencyKey,
+        amount: decimalString(reservation.amount),
+        ...(reservation.settledAmount === null ? {} : { settledAmount: decimalString(reservation.settledAmount) }),
         currency: "IDR",
-        status: updated.status,
-        expiresAt: updated.expiresAt,
-        ledgerTransactionId: updated.ledgerTransactionId,
+        status: reservation.status,
+        expiresAt: reservation.expiresAt,
+        ledgerTransactionId: reservation.ledgerTransactionId,
       };
-    }, { isolationLevel: "Serializable", timeout: 15_000 });
+    }
+    if (reservation.status !== "reserved") throw new Error("RESERVATION_NOT_RELEASABLE");
+    const updated = await tx.walletReservation.update({
+      where: { id: reservation.id },
+      data: { status: "released" },
+    });
+    return {
+      reservationId: updated.id,
+      idempotencyKey: updated.idempotencyKey,
+      amount: decimalString(updated.amount),
+      currency: "IDR",
+      status: updated.status,
+      expiresAt: updated.expiresAt,
+      ledgerTransactionId: updated.ledgerTransactionId,
+    };
   }
+
+  async releaseReservation(userId: string, reservationId: string): Promise<WalletReservationResult> {
+    return this.database.$transaction(
+      (tx) => this.releaseReservationInTransaction(tx, userId, reservationId),
+      { isolationLevel: "Serializable", timeout: 15_000 },
+    );
+  }
+
 }
