@@ -8,3 +8,5 @@ playwright-report/
 *.tsbuildinfo
 .env*
 !.env.example
+packages/database/generated/
+packages/database/dist/

@@ -1,0 +1,150 @@
+name: AzaleaRouter CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches:
+      - main
+      - "docs/**"
+      - "feat/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: azalea-router-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Install, lint, typecheck, build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: azalea_router_test
+          POSTGRES_USER: azalea
+          POSTGRES_PASSWORD: local-ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U azalea -d azalea_router_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://azalea:local-ci-only-password@127.0.0.1:5432/azalea_router_test?schema=public
+      REDIS_URL: redis://127.0.0.1:6379
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.18.0
+          run_install: false
+
+      - name: Install dependencies (frozen lockfile required)
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint all workspace packages
+        run: pnpm lint
+
+      - name: Frontend typecheck
+        run: pnpm typecheck
+
+      - name: Frontend build
+        run: pnpm build
+
+      - name: Frontend unit tests
+        run: pnpm test
+
+      - name: Database package lint
+        run: pnpm --filter @azalea-router/database lint
+
+      - name: Validate PostgreSQL schema
+        run: pnpm --filter @azalea-router/database db:validate
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @azalea-router/database db:generate
+
+      - name: Apply committed database migrations
+        run: pnpm --filter @azalea-router/database db:migrate:deploy
+
+      - name: Database package typecheck and build
+        run: pnpm --filter @azalea-router/database build
+
+      - name: Database unit tests
+        run: pnpm --filter @azalea-router/database test
+
+      - name: Catalog package lint
+        run: pnpm --filter @azalea-router/catalog lint
+
+      - name: Catalog package typecheck
+        run: pnpm --filter @azalea-router/catalog typecheck
+
+      - name: Catalog package build
+        run: pnpm --filter @azalea-router/catalog build
+
+      - name: Catalog package unit tests
+        run: pnpm --filter @azalea-router/catalog test
+
+      - name: Billing package lint
+        run: pnpm --filter @azalea-router/billing lint
+
+      - name: Billing package typecheck
+        run: pnpm --filter @azalea-router/billing typecheck
+
+      - name: Billing package build
+        run: pnpm --filter @azalea-router/billing build
+
+      - name: Billing package unit tests
+        run: pnpm --filter @azalea-router/billing test
+
+      - name: API lint
+        run: pnpm --filter @azalea-router/api lint
+
+      - name: Validate OpenAPI 3.1 contract
+        run: pnpm --filter @azalea-router/api openapi:lint
+
+      - name: API typecheck
+        run: pnpm --filter @azalea-router/api typecheck
+
+      - name: API build
+        run: pnpm --filter @azalea-router/api build
+
+      - name: API unit and integration tests
+        run: pnpm --filter @azalea-router/api test
+
+      - name: Worker lint
+        run: pnpm --filter @azalea-router/worker lint
+
+      - name: Worker typecheck
+        run: pnpm --filter @azalea-router/worker typecheck
+
+      - name: Worker build
+        run: pnpm --filter @azalea-router/worker build
+
+      - name: Worker unit and Redis integration tests
+        run: pnpm --filter @azalea-router/worker test
