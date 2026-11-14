@@ -10,6 +10,7 @@ import { createCorsMiddleware } from "./middleware/cors.js";
 import { env } from "./config/env.js";
 import { authUnavailableRouter } from "./routes/auth-unavailable.js";
 import { healthRouter } from "./routes/health.js";
+import { createCatalogRouter } from "./routes/catalog.js";
 
 export interface AppDependencies {
   database?: DatabaseClient;
@@ -26,6 +27,9 @@ export function createApp(dependencies: AppDependencies = {}) {
   app.use(express.json({ limit: "1mb", strict: true }));
   app.use("/api/v1", createSessionResolver(dependencies.sessionVerifier));
   app.use("/api/v1", dependencies.authRouter ?? authUnavailableRouter);
+  if (dependencies.database) {
+    app.use("/api/v1", createCatalogRouter(dependencies.database));
+  }
   app.use("/api/v1", healthRouter);
 
   app.get("/api/v1/health/ready", async (req, res) => {
