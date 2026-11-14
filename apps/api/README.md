@@ -1,6 +1,6 @@
-# AzaleaRouter API — BE-1 foundation and BE-2 auth boundary
+# AzaleaRouter API — backend website API
 
-Express 5 + TypeScript API skeleton for the AzaleaRouter modular monolith.
+Express 5 + TypeScript API for the AzaleaRouter modular monolith.
 
 ## Local setup
 
@@ -14,38 +14,41 @@ corepack pnpm --filter @azalea-router/database db:migrate:deploy
 corepack pnpm --filter @azalea-router/api dev
 ```
 
-The API listens on 127.0.0.1:4000 by default. DATABASE_URL is read by the API and database package from the server environment. The included local example points only to the isolated development database in Compose.
+The API listens on 127.0.0.1:4000 by default. The database example uses only the isolated local PostgreSQL service.
 
-## Current scope
-- Zod environment validation, request IDs and standard JSON error envelope.
-- Express application factory and liveness endpoint.
-- Database-backed readiness endpoint at GET /api/v1/health/ready; it returns 503 when a database is not configured or reachable.
-- PostgreSQL client through the shared @azalea-router/database package.
-- Structured JSON request/error logs with a safe field allowlist and duration; OpenTelemetry API spans are emitted through a vendor-neutral instrumentation hook.
-- Graceful SIGINT/SIGTERM shutdown including database disconnection.
-- OpenAPI 3.1 initial contract at openapi/openapi.yaml; Redocly spec lint is part of CI (`pnpm --filter @azalea-router/api openapi:lint`).
-- Vendor-neutral session-verifier boundary and optional session-resolution middleware.
-- GET /api/v1/auth/session session introspection.
-- Role/permission policy and resource-ownership helpers for user, support, admin, and super-admin.
+## Auth adapter status
 
-## API checks
+The API implements a provider adapter for Supabase Auth, but `AUTH_PROVIDER=disabled` is the default. It will not authenticate requests or expose simulated login while disabled. Supabase integration starts only when `AUTH_PROVIDER=supabase`, `AUTH_PROVIDER_APPROVED=true`, all secrets are configured, and the origin, cookie, Turnstile and Terms/Privacy versions are supplied. D-03 remains an owner decision; this implementation does not silently approve a vendor.
+
+The browser receives an opaque HttpOnly session cookie. Supabase access/refresh tokens are AES-256-GCM encrypted in PostgreSQL, session identifiers are SHA-256 hashed, refresh rotates under a database row lock, sessions are revocable, CSRF uses an additional readable cookie/header pair, and state-changing browser requests require an allowlisted Origin. Roles and account status come from the AzaleaRouter database, never JWT metadata or browser request data.
+
+Turnstile Siteverify is performed server-side against Cloudflare's fixed Siteverify endpoint. The backend checks success, hostname, expected action and the five-minute challenge age, then writes a unique token hash to PostgreSQL to reject replay across API replicas. Supabase's own CAPTCHA validation must not also be enabled for the same challenge token: it would cause the token to be validated twice. If using Supabase Auth, keep its optional CAPTCHA gate disabled and use this server-side check as the single validation path.
+
+Supabase confirmation and recovery emails use the mailer configured in the Supabase project. No SMTP sending domain or email delivery provider is configured by this repository; D-12 remains open. Configure and verify SMTP, sender identity, email templates, redirect allowlist and deliverability in the identity provider before testing live email.
+
+## Endpoints
+
+- `POST /api/v1/auth/register`, `login`, `logout`, `refresh`
+- `POST /api/v1/auth/email/verify`, `email/resend`
+- `POST /api/v1/auth/password/forgot`, `password/reset`
+- `GET /api/v1/auth/session`
+- `GET /api/v1/me`, `PATCH /api/v1/me/profile`, `PATCH /api/v1/me/preferences`
+- `GET /api/v1/me/consents`, `POST /api/v1/me/consents`
+
+Browser mutation requests send the `azlr_csrf` cookie value in `X-CSRF-Token` and a matching allowlisted Origin. Production uses Secure HttpOnly cookies and the `__Host-` session-cookie prefix. The CSRF cookie is intentionally not HttpOnly so the browser can echo its value in the header.
+
+## Quality checks
 
 ```bash
 corepack pnpm --filter @azalea-router/api openapi:lint
-```
-
-
-```bash
 corepack pnpm --filter @azalea-router/api lint
 corepack pnpm --filter @azalea-router/api typecheck
 corepack pnpm --filter @azalea-router/api build
 corepack pnpm --filter @azalea-router/api test
+corepack pnpm --filter @azalea-router/database db:validate
+corepack pnpm --filter @azalea-router/database db:migrate:deploy
 ```
 
-## Authentication status
+## Persistence and deployment
 
-No identity provider is configured. Until D-03 is approved and a verified adapter is injected into createApp, the API does not authenticate users. Registration, login, refresh, logout, email verification, password reset, profile persistence, Turnstile Siteverify and consent persistence are not implemented in this increment. No fake credentials, demo JWTs, or in-memory production sessions are used. See docs/backend/BE-2-auth-readiness.md for blockers and exit criteria.
-
-## Persistence and other integrations
-
-PostgreSQL + Prisma ORM 7.10.1 is the reversible local/test baseline. No hosted database provider, production region, production credentials or backup/PITR policy is selected. Redis/BullMQ runs in the separate apps/worker package. Payments, upstream providers, wallet and production secrets are not configured in this foundation.
+PostgreSQL + Prisma ORM 7.10.1 is the local/test baseline. The database package uses migrations, not `db push`. No hosted database provider, production region, production credentials, backup/PITR policy, payment merchant, upstream gateway approval or live traffic is selected. D-05 is a legal paid-launch blocker; D-04 and D-10 also remain open.

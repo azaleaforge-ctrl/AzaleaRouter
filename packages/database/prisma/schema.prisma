@@ -42,6 +42,7 @@ model User {
   profile          UserProfile?
   preferences      UserPreference?
   consents         UserConsent[]
+  authSessions     AuthSession[]
 
   @@index([status, createdAt])
   @@map("users")
@@ -141,4 +142,50 @@ model IdempotencyRecord {
   @@unique([scope, idempotencyKey])
   @@index([expiresAt])
   @@map("idempotency_records")
+}
+
+model AuthSession {
+  id                       String    @id @default(uuid()) @db.Uuid
+  userId                   String    @map("user_id") @db.Uuid
+  sessionTokenHash         String    @unique @map("session_token_hash") @db.Char(64)
+  csrfTokenHash            String    @map("csrf_token_hash") @db.Char(64)
+  encryptedAccessToken     String    @map("encrypted_access_token") @db.Text
+  encryptedRefreshToken    String    @map("encrypted_refresh_token") @db.Text
+  encryptionKeyVersion     String    @map("encryption_key_version") @db.VarChar(32)
+  accessExpiresAt          DateTime  @map("access_expires_at") @db.Timestamptz(6)
+  refreshExpiresAt         DateTime  @map("refresh_expires_at") @db.Timestamptz(6)
+  lastSeenAt               DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  revokedAt                DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  user                     User      @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([userId, revokedAt, accessExpiresAt])
+  @@index([refreshExpiresAt])
+  @@map("auth_sessions")
+}
+
+model TurnstileTokenUse {
+  id          String   @id @default(uuid()) @db.Uuid
+  tokenHash   String   @unique @map("token_hash") @db.Char(64)
+  action      String   @db.VarChar(64)
+  hostname    String   @db.VarChar(253)
+  challengeAt DateTime @map("challenge_at") @db.Timestamptz(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(6)
+
+  @@index([expiresAt])
+  @@map("turnstile_token_uses")
+}
+
+model AuthRateLimit {
+  id          String   @id @default(uuid()) @db.Uuid
+  bucketHash  String   @map("bucket_hash") @db.Char(64)
+  windowStart DateTime @map("window_start") @db.Timestamptz(6)
+  hitCount    Int      @default(1) @map("hit_count")
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([bucketHash, windowStart])
+  @@index([expiresAt])
+  @@map("auth_rate_limits")
 }
