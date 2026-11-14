@@ -129,7 +129,7 @@ test("wallet reservation is concurrency-safe and settlement posts a balanced led
     const balance = await walletService.getBalance(user.id);
     assert.equal(balance.ledgerBalance, "124940");
     assert.equal(balance.reservedBalance, "0");
-    assert.equal(balance.availableBalance, "124900");
+    assert.equal(balance.availableBalance, "124940");
   } finally {
     // Financial rows are intentionally retained in this disposable CI database.
     await database.$disconnect();
