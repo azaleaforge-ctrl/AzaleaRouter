@@ -6,6 +6,10 @@
 
 ## 1. Go/no-go gates
 
+### Upstream terms recheck — 15 November 2026
+
+The public [OpenRouter Terms](https://openrouter.ai/terms), last updated 31 August 2026, still prohibit resale of Model API access or developing a competing service in §7(4). The official [Enterprise Access Agreement template](https://openrouter.ai/terms-of-service-enterprise), last updated 22 June 2026, §2.1 permits an enterprise customer to make the Service available to its End Customers, but the licence is non-transferable and non-sublicensable; §2.3.7 prohibits renting/reselling or otherwise allowing third-party access. The template requires a mutually executed Order Form and incorporates a DPA. No executed Order Form, DPA or AzaleaRouter-specific written approval is recorded. This is not sufficient evidence to enable AzaleaRouter's proxy/gateway, downstream AZL keys or prepaid customer billing. D-05 remains **BLOCKED** pending written scope approval and qualified legal review.
+
 A closed beta may not be approved until every applicable gate has an owner, evidence link, test result and explicit approval.
 
 | Gate | Required evidence | Current state |
@@ -21,6 +25,8 @@ A closed beta may not be approved until every applicable gate has an owner, evid
 | Stage completion | BE-0..BE-8 acceptance evidence, resolved reviews, clean dependency chain and migration audit | INCOMPLETE |
 
 No owner approval, legal permission, merchant onboarding, production credential, alert threshold or RPO/RTO is inferred by this checklist.
+
+The BE-8 follow-up [PR #13](https://github.com/azaleaforge-ctrl/AzaleaRouter/pull/13) adds a read-only queue-count endpoint. It does not implement a dead-letter queue, failed-job inspection/retry, monitoring exporter or paging/alert delivery.
 
 ## 2. Backup and restore runbook
 
