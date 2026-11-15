@@ -18,6 +18,11 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   WEB_ORIGIN: z.string().url().optional(),
   DATABASE_URL: z.string().url().optional(),
+  REDIS_URL: z.string().url().refine((value) => {
+    try { return ["redis:", "rediss:"].includes(new URL(value).protocol); }
+    catch { return false; }
+  }, "REDIS_URL must use redis:// or rediss://").optional(),
+  WORKER_QUEUE_NAME: z.string().min(1).max(100).regex(/^[a-zA-Z0-9:_-]+$/).default("azalea-router-background"),
 
   // Supabase is an optional identity-provider adapter, not an approved
   // commercial/provider decision. It remains disabled unless explicitly enabled.

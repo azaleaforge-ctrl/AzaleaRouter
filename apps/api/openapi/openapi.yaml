@@ -1425,6 +1425,39 @@ paths:
                       files_quarantined: { type: integer, minimum: 0 }
         "401": { $ref: "#/components/responses/ErrorResponse" }
         "403": { $ref: "#/components/responses/ErrorResponse" }
+  /admin/operations/queue:
+    get:
+      operationId: getAdminQueueMetrics
+      summary: Read aggregate BullMQ job counts without exposing job payloads
+      security: [{ cookieAuth: [] }]
+      responses:
+        "200":
+          description: Aggregate queue counts; failed jobs are not represented as a dead-letter queue
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [as_of, counts, dead_letter_queue_configured]
+                properties:
+                  as_of: { type: string, format: date-time }
+                  dead_letter_queue_configured: { type: boolean, const: false }
+                  counts:
+                    type: object
+                    additionalProperties: false
+                    required: [waiting, active, delayed, completed, failed, paused, waiting_children, prioritized]
+                    properties:
+                      waiting: { type: integer, minimum: 0 }
+                      active: { type: integer, minimum: 0 }
+                      delayed: { type: integer, minimum: 0 }
+                      completed: { type: integer, minimum: 0 }
+                      failed: { type: integer, minimum: 0 }
+                      paused: { type: integer, minimum: 0 }
+                      waiting_children: { type: integer, minimum: 0 }
+                      prioritized: { type: integer, minimum: 0 }
+        "401": { $ref: "#/components/responses/ErrorResponse" }
+        "403": { $ref: "#/components/responses/ErrorResponse" }
+        "503": { $ref: "#/components/responses/ErrorResponse" }
   /admin/usage/reconciliation:
     get:
       operationId: listAdminUsageReconciliation
