@@ -1,7 +1,7 @@
 # BE-8 — Admin APIs, Audit Visibility, Reconciliation and Operations
 
 **Status:** Partial implementation on `feat/backend-admin-be8` with a read-only operations follow-up in PR #13; not stage-complete.
-**Base:** BE-7 branch head `8e2c5b1e6669e9fa851af36f348d9c6a092bc18f`.
+**Base:** original PR #11 BE-7 target head `d580c1521f1d34921ddff96e3e5be7f6fc483f33`. The PR #13 operations follow-up is stacked on BE-9 head `1a5ab958c399da9338036d069885865d801a48e4` to preserve dependency ancestry.
 **Production state:** all admin APIs remain behind authenticated, permission-specific middleware. No live financial mutation, refund, role assignment, or production operation is enabled by this increment.
 
 ## Implemented in this increment
@@ -26,7 +26,7 @@
 
 ## Validation required
 
-- PR #13 implementation commit `aae8863b7671b468cd0dfca0b6458e09040b9a17` passed [exact-head GitHub Actions run #43673508410](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43673508410), including frozen lockfile install, OpenAPI validation, API lint/typecheck/build/tests and worker checks.
+- PR #13 implementation commit `aae8863b7671b468cd0dfca0b6458e09040b9a17` passed [exact-head GitHub Actions run #43673508410](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43673508410). The subsequent status/legal documentation head `c85109d6c43f56ff16d7c0bdb9c527f51f55bf7f` also passed [exact-head run #43673682455](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43673682455), including frozen lockfile install, OpenAPI validation, API lint/typecheck/build/tests and worker checks.
 
 - Exact-head CI for the BE-8 branch, including API lint, typecheck, build, OpenAPI lint and tests.
 - PostgreSQL integration tests for reconciliation queries and audit access.

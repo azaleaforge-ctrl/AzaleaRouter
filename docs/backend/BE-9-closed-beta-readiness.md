@@ -1,7 +1,7 @@
 # BE-9 — Closed-Beta Readiness, Operations and Go/No-Go
 
 **Status:** Readiness framework drafted on `feat/backend-closed-beta-be9`; operational execution is blocked by unselected production infrastructure and owner/legal decisions.
-**Base:** BE-8 branch head `e8baa01ac2113939ca5a726db30b1f2dc3e7721c` (current dependency head at this readiness snapshot).
+**Base:** PR #12 targets BE-8 branch head `1513f0517fbac5d450518df2146bd84d25b0268d`; the latest BE-9 branch head at this snapshot is `1a5ab958c399da9338036d069885865d801a48e4`.
 **Launch state:** **NO-GO** for closed beta with customer data or paid upstream traffic. This document is a runbook template, not evidence that production controls exist.
 
 ## 1. Go/no-go gates
