@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
 import type { DatabaseClient } from "@azalea-router/database";
+import { HttpError } from "../lib/http-error.js";
+import type { QueueMetricsReader } from "../operations/queue-metrics.js";
 import { requirePermission } from "../middleware/authorization.js";
 import "../auth/types.js";
 
@@ -31,6 +33,7 @@ function decimalString(value: { toString(): string } | null | undefined): string
 
 export interface AdminRouterOptions {
   database: DatabaseClient;
+  queueMetrics?: QueueMetricsReader;
 }
 
 export function createAdminRouter(options: AdminRouterOptions): Router {
@@ -69,6 +72,24 @@ export function createAdminRouter(options: AdminRouterOptions): Router {
         outbox_events_pending: outboxEventsPending,
         files_quarantined: filesQuarantined,
       },
+    });
+  });
+
+  router.get("/admin/operations/queue", requirePermission("operations:read"), async (_req, res) => {
+    if (!options.queueMetrics) {
+      throw new HttpError(503, "QUEUE_METRICS_UNAVAILABLE", "Queue metrics are not configured.");
+    }
+    let counts;
+    try {
+      counts = await options.queueMetrics.readCounts();
+    } catch {
+      throw new HttpError(503, "QUEUE_METRICS_UNAVAILABLE", "Queue metrics are temporarily unavailable.");
+    }
+    res.status(200).json({
+      as_of: new Date().toISOString(),
+      counts,
+      // Failed jobs are not a dead-letter queue. No DLQ is configured by this implementation.
+      dead_letter_queue_configured: false,
     });
   });
 

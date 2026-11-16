@@ -1,10 +1,14 @@
 # BE-9 — Closed-Beta Readiness, Operations and Go/No-Go
 
 **Status:** Readiness framework drafted on `feat/backend-closed-beta-be9`; operational execution is blocked by unselected production infrastructure and owner/legal decisions.
-**Base:** BE-8 branch head `e8baa01ac2113939ca5a726db30b1f2dc3e7721c` (current dependency head at this readiness snapshot).
+**Base:** PR #12 targets BE-8 branch head `1513f0517fbac5d450518df2146bd84d25b0268d`; the latest BE-9 branch head at this snapshot is `1a5ab958c399da9338036d069885865d801a48e4`.
 **Launch state:** **NO-GO** for closed beta with customer data or paid upstream traffic. This document is a runbook template, not evidence that production controls exist.
 
 ## 1. Go/no-go gates
+
+### Upstream terms recheck — 15 November 2026
+
+The public [OpenRouter Terms](https://openrouter.ai/terms), last updated 31 August 2026, still prohibit resale of Model API access or developing a competing service in §7(4). The official [Enterprise Access Agreement template](https://openrouter.ai/terms-of-service-enterprise), last updated 22 June 2026, §2.1 permits an enterprise customer to make the Service available to its End Customers, but the licence is non-transferable and non-sublicensable; §2.3.7 prohibits renting/reselling or otherwise allowing third-party access. The template requires a mutually executed Order Form and incorporates a DPA. No executed Order Form, DPA or AzaleaRouter-specific written approval is recorded. This is not sufficient evidence to enable AzaleaRouter's proxy/gateway, downstream AZL keys or prepaid customer billing. D-05 remains **BLOCKED** pending written scope approval and qualified legal review.
 
 A closed beta may not be approved until every applicable gate has an owner, evidence link, test result and explicit approval.
 
@@ -21,6 +25,8 @@ A closed beta may not be approved until every applicable gate has an owner, evid
 | Stage completion | BE-0..BE-8 acceptance evidence, resolved reviews, clean dependency chain and migration audit | INCOMPLETE |
 
 No owner approval, legal permission, merchant onboarding, production credential, alert threshold or RPO/RTO is inferred by this checklist.
+
+The BE-8 follow-up [PR #13](https://github.com/azaleaforge-ctrl/AzaleaRouter/pull/13) adds a read-only queue-count endpoint. It does not implement a dead-letter queue, failed-job inspection/retry, monitoring exporter or paging/alert delivery.
 
 ## 2. Backup and restore runbook
 

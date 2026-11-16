@@ -3,11 +3,14 @@ import { createServer, type Server } from "node:http";
 import test from "node:test";
 import type { DatabaseClient } from "@azalea-router/database";
 import { createApp } from "../src/app.js";
-import { createAdminRouter } from "../src/routes/admin.js";
+import { createAdminRouter, type AdminRouterOptions } from "../src/routes/admin.js";
 
-async function startAdminServer(database: DatabaseClient): Promise<{ server: Server; baseUrl: string }> {
+async function startAdminServer(
+  database: DatabaseClient,
+  queueMetrics?: AdminRouterOptions["queueMetrics"],
+): Promise<{ server: Server; baseUrl: string }> {
   const app = createApp({
-    adminRouter: createAdminRouter({ database }),
+    adminRouter: createAdminRouter({ database, ...(queueMetrics ? { queueMetrics } : {}) }),
     sessionVerifier: {
       resolvePrincipal: async (request) => {
         const role = request.header("x-test-role");
@@ -52,13 +55,15 @@ test("support role cannot access admin operations or audit data", async () => {
   const database = {} as unknown as DatabaseClient;
   const { server, baseUrl } = await startAdminServer(database);
   try {
-    const [operations, audit, user] = await Promise.all([
+    const [operations, audit, queue, user] = await Promise.all([
       fetch(`${baseUrl}/api/v1/admin/operations/summary`, { headers: { "x-test-role": "support" } }),
       fetch(`${baseUrl}/api/v1/admin/audit-logs`, { headers: { "x-test-role": "support" } }),
+      fetch(`${baseUrl}/api/v1/admin/operations/queue`, { headers: { "x-test-role": "support" } }),
       fetch(`${baseUrl}/api/v1/admin/operations/summary`, { headers: { "x-test-role": "user" } }),
     ]);
     assert.equal(operations.status, 403);
     assert.equal(audit.status, 403);
+    assert.equal(queue.status, 403);
     assert.equal(user.status, 403);
   } finally {
     await closeServer(server);
@@ -201,4 +206,56 @@ test("audit filters reject an inverted time range before querying the database",
   } finally {
     await closeServer(server);
   }
+});
+
+
+test("queue metrics endpoint is read-only and exposes counts but no job payloads", async () => {
+  const database = {} as unknown as DatabaseClient;
+  const queueMetrics = { readCounts: async () => ({
+    waiting: 3, active: 2, delayed: 1, completed: 40, failed: 5,
+    paused: 0, waiting_children: 0, prioritized: 0,
+  }) };
+  const { server, baseUrl } = await startAdminServer(database, queueMetrics);
+  try {
+    const response = await fetch(`${baseUrl}/api/v1/admin/operations/queue`, {
+      headers: { "x-test-role": "admin" },
+    });
+    const body = await response.json() as {
+      as_of: string; counts: Record<string, number>; dead_letter_queue_configured: boolean;
+    };
+    assert.equal(response.status, 200);
+    assert.ok(Number.isFinite(Date.parse(body.as_of)));
+    assert.deepEqual(body.counts, {
+      waiting: 3, active: 2, delayed: 1, completed: 40, failed: 5,
+      paused: 0, waiting_children: 0, prioritized: 0,
+    });
+    assert.equal(body.dead_letter_queue_configured, false);
+    assert.equal(JSON.stringify(body).includes("job payload"), false);
+  } finally { await closeServer(server); }
+});
+
+test("queue metrics endpoint fails closed when Redis metrics are not configured", async () => {
+  const { server, baseUrl } = await startAdminServer({} as unknown as DatabaseClient);
+  try {
+    const response = await fetch(`${baseUrl}/api/v1/admin/operations/queue`, {
+      headers: { "x-test-role": "admin" },
+    });
+    const body = await response.json() as { error?: { code?: string } };
+    assert.equal(response.status, 503);
+    assert.equal(body.error?.code, "QUEUE_METRICS_UNAVAILABLE");
+  } finally { await closeServer(server); }
+});
+
+test("queue metrics endpoint sanitizes Redis failures", async () => {
+  const queueMetrics = { readCounts: async () => { throw new Error("redis://user:secret@redis.internal"); } };
+  const { server, baseUrl } = await startAdminServer({} as unknown as DatabaseClient, queueMetrics);
+  try {
+    const response = await fetch(`${baseUrl}/api/v1/admin/operations/queue`, {
+      headers: { "x-test-role": "admin" },
+    });
+    const raw = await response.text();
+    assert.equal(response.status, 503);
+    assert.equal(raw.includes("secret"), false);
+    assert.equal(raw.includes("redis.internal"), false);
+  } finally { await closeServer(server); }
 });

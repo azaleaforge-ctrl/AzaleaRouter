@@ -22,6 +22,7 @@ import { createNotificationRouter } from "./routes/notifications.js";
 import { createSupportRouter } from "./routes/support.js";
 import { createContentRouter } from "./routes/content.js";
 import { createAdminRouter } from "./routes/admin.js";
+import { createBullMqQueueMetricsReader } from "./operations/queue-metrics.js";
 import { LocalPrivateObjectStorage } from "./storage/private-object-storage.js";
 import { UnavailableFileScanner } from "./storage/file-scanner.js";
 import { FileService } from "./storage/file-service.js";
@@ -29,6 +30,9 @@ import { FileService } from "./storage/file-service.js";
 async function start(): Promise<void> {
   const database = env.DATABASE_URL ? createDatabaseClient(env.DATABASE_URL) : undefined;
   if (database) await database.$connect();
+  const queueMetrics = env.REDIS_URL
+    ? createBullMqQueueMetricsReader(env.REDIS_URL, env.WORKER_QUEUE_NAME)
+    : undefined;
 
   let auth: {
     router: ReturnType<typeof createAuthRouter>;
@@ -164,7 +168,7 @@ async function start(): Promise<void> {
     : undefined;
 
   const contentRouter = database ? createContentRouter(database) : undefined;
-  const adminRouter = database ? createAdminRouter({ database }) : undefined;
+  const adminRouter = database ? createAdminRouter({ database, ...(queueMetrics ? { queueMetrics } : {}) }) : undefined;
 
   const gatewayRouter = database && apiKeyService && usage
     ? createGatewayRouter({
@@ -209,8 +213,11 @@ async function start(): Promise<void> {
         logger.error("api.server.shutdown.error");
         process.exitCode = 1;
       }
-      void database?.$disconnect().catch(() => {
-        logger.error("api.server.database_disconnect.error");
+      void Promise.all([
+        ...(queueMetrics ? [queueMetrics.close()] : []),
+        ...(database ? [database.$disconnect()] : []),
+      ]).catch(() => {
+        logger.error("api.server.dependency_disconnect.error");
         process.exitCode = 1;
       });
     });
