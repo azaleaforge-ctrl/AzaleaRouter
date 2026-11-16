@@ -11,7 +11,11 @@ Node.js + TypeScript worker foundation using BullMQ 5 and Redis.
 3. Start the worker:
    `corepack pnpm --filter @azalea-router/worker dev`
 
-The worker consumes the `azalea-router-background` queue by default. Its initial registered job is `system.health-check`; domain jobs are registered by later backend stages. The Node.js dev command loads `apps/worker/.env` when present.
+The worker consumes the `azalea-router-background` queue by default. Its initial registered job is `system.health-check`; domain jobs are registered by later backend stages. The Node.js dev command loads `apps/worker/.env` when present. The local Redis fallback is available only in `development` and `test` environments.
+
+## Staging and production configuration
+
+Set an explicit `REDIS_URL` using `redis://` or `rediss://`, and an explicit PostgreSQL `DATABASE_URL`, for both `staging` and `production`. The worker refuses to start in those environments when either dependency is missing. It never silently falls back to localhost outside development/test. Use TLS (`rediss://`) where required by the deployment network and keep credentials in the deployment secret manager, not in committed files or logs.
 
 ## Reliability and safety
 
