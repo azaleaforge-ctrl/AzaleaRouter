@@ -27,3 +27,9 @@ test("rejects unsupported protocols and invalid database indexes", () => {
   assert.throws(() => parseRedisConnectionOptions("redis://localhost/not-a-db"), /database index/i);
   assert.throws(() => parseRedisConnectionOptions("redis://localhost/#fragment"), /fragments/i);
 });
+
+test("rejects Redis URLs with query strings, missing hosts or malformed credentials", () => {
+  assert.throws(() => parseRedisConnectionOptions("redis://localhost:6379?retry=forever"), /query strings/);
+  assert.throws(() => parseRedisConnectionOptions("redis:///2"), /hostname/);
+  assert.throws(() => parseRedisConnectionOptions("redis://worker:%ZZ@localhost:6379"), /credentials/);
+});

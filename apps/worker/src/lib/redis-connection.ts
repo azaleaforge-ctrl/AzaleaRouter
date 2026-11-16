@@ -21,8 +21,11 @@ export function parseRedisConnectionOptions(redisUrl: string): RedisConnectionOp
   if (url.protocol !== "redis:" && url.protocol !== "rediss:") {
     throw new Error("Unsupported Redis URL protocol.");
   }
-  if (url.hash) {
-    throw new Error("Redis URL fragments are not supported.");
+  if (!url.hostname) {
+    throw new Error("Redis URL hostname is required.");
+  }
+  if (url.hash || url.search) {
+    throw new Error("Redis URL query strings and fragments are not supported.");
   }
 
   const options: RedisConnectionOptions = {
@@ -35,11 +38,18 @@ export function parseRedisConnectionOptions(redisUrl: string): RedisConnectionOp
     throw new Error("Redis URL port is invalid.");
   }
 
-  if (url.username) options.username = decodeURIComponent(url.username);
-  if (url.password) options.password = decodeURIComponent(url.password);
+  try {
+    if (url.username) options.username = decodeURIComponent(url.username);
+    if (url.password) options.password = decodeURIComponent(url.password);
+  } catch {
+    throw new Error("Redis URL credentials are malformed.");
+  }
 
-  const databasePath = url.pathname.replace(/^\//, "");
+  const databasePath = url.pathname.startsWith("/") ? url.pathname.slice(1) : url.pathname;
   if (databasePath) {
+    if (!/^[0-9]+$/.test(databasePath)) {
+      throw new Error("Redis URL database index is invalid.");
+    }
     const database = Number(databasePath);
     if (!Number.isSafeInteger(database) || database < 0) {
       throw new Error("Redis URL database index is invalid.");
