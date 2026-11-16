@@ -40,6 +40,7 @@
 - Redis/BullMQ is for background processing and coordination only, never the financial source of truth.
 - PostgreSQL/Prisma is implemented as a local/test foundation; database host, region, backup/PITR and production credentials remain unselected.
 - API session verification is a gated provider integration, not an approved production identity-provider decision.
+- Worker configuration uses the localhost Redis fallback only in development/test; staging/production require explicit Redis and PostgreSQL URLs and fail startup if either is missing.
 - OpenRouter/provider adapters must remain swappable. No written downstream permission is assumed.
 - CI and local development may use test services only; never production payment credentials or paid upstream calls.
 
@@ -53,3 +54,4 @@
 | 14 Nov 2026 | Rechecked the official OpenRouter Terms. §7(4) resale/competing-service prohibition remains in effect; no signed exception or downstream authorization is recorded. |
 | 15 Nov 2026 | Rechecked the public Terms and Enterprise Access Agreement template. The enterprise template contemplates end-customer use but remains non-sublicensable and prohibits resale/third-party access; no executed Order Form, DPA or AzaleaRouter-specific written scope approval is recorded. D-05 remains blocked. |
 | 16 Nov 2026 | Rechecked the live official Terms and Enterprise Access Agreement. Public Terms §5.1 customer-product wording does not remove the separate §7.4 resale/competing-service prohibition; EAA §2.1 and §2.3.7 still require a signed, scope-specific clarification for AzaleaRouter's gateway and billing flow. No executed Order Form/DPA or written scope approval is recorded. D-05 remains blocked. |
+| 16 Nov 2026 | Hardened the reversible worker runtime default: localhost Redis fallback is limited to development/test; staging/production require explicit Redis and PostgreSQL endpoints. This is an engineering safety default, not a hosted-provider or production-credential approval. |
