@@ -8,9 +8,14 @@ import { createAdminRouter, type AdminRouterOptions } from "../src/routes/admin.
 async function startAdminServer(
   database: DatabaseClient,
   queueMetrics?: AdminRouterOptions["queueMetrics"],
+  queueJobReader?: AdminRouterOptions["queueJobReader"],
 ): Promise<{ server: Server; baseUrl: string }> {
   const app = createApp({
-    adminRouter: createAdminRouter({ database, ...(queueMetrics ? { queueMetrics } : {}) }),
+    adminRouter: createAdminRouter({
+      database,
+      ...(queueMetrics ? { queueMetrics } : {}),
+      ...(queueJobReader ? { queueJobReader } : {}),
+    }),
     sessionVerifier: {
       resolvePrincipal: async (request) => {
         const role = request.header("x-test-role");
@@ -44,8 +49,12 @@ test("admin operations endpoints require an authenticated principal", async () =
   const database = {} as unknown as DatabaseClient;
   const { server, baseUrl } = await startAdminServer(database);
   try {
-    const response = await fetch(`${baseUrl}/api/v1/admin/operations/summary`);
-    assert.equal(response.status, 401);
+    const [summary, queueJob] = await Promise.all([
+      fetch(`${baseUrl}/api/v1/admin/operations/summary`),
+      fetch(`${baseUrl}/api/v1/admin/operations/queue/jobs/job-123`),
+    ]);
+    assert.equal(summary.status, 401);
+    assert.equal(queueJob.status, 401);
   } finally {
     await closeServer(server);
   }
@@ -55,15 +64,17 @@ test("support role cannot access admin operations or audit data", async () => {
   const database = {} as unknown as DatabaseClient;
   const { server, baseUrl } = await startAdminServer(database);
   try {
-    const [operations, audit, queue, user] = await Promise.all([
+    const [operations, audit, queue, queueJob, user] = await Promise.all([
       fetch(`${baseUrl}/api/v1/admin/operations/summary`, { headers: { "x-test-role": "support" } }),
       fetch(`${baseUrl}/api/v1/admin/audit-logs`, { headers: { "x-test-role": "support" } }),
       fetch(`${baseUrl}/api/v1/admin/operations/queue`, { headers: { "x-test-role": "support" } }),
+      fetch(`${baseUrl}/api/v1/admin/operations/queue/jobs/job-123`, { headers: { "x-test-role": "support" } }),
       fetch(`${baseUrl}/api/v1/admin/operations/summary`, { headers: { "x-test-role": "user" } }),
     ]);
     assert.equal(operations.status, 403);
     assert.equal(audit.status, 403);
     assert.equal(queue.status, 403);
+    assert.equal(queueJob.status, 403);
     assert.equal(user.status, 403);
   } finally {
     await closeServer(server);
@@ -258,4 +269,94 @@ test("queue metrics endpoint sanitizes Redis failures", async () => {
     assert.equal(raw.includes("secret"), false);
     assert.equal(raw.includes("redis.internal"), false);
   } finally { await closeServer(server); }
+});
+
+
+test("queue job inspection returns only safe metadata to an authorized admin", async () => {
+  const requested: string[] = [];
+  const queueJobReader = {
+    readJob: async (jobId: string) => {
+      requested.push(jobId);
+      return {
+        id: jobId,
+        name: "catalog.openrouter.sync",
+        state: "failed" as const,
+        attempts_made: 3,
+        attempts_allowed: 3,
+        created_at: "2026-11-17T03:00:00.000Z",
+        processed_at: "2026-11-17T03:00:01.000Z",
+        finished_at: "2026-11-17T03:00:02.000Z",
+      };
+    },
+  };
+  const { server, baseUrl } = await startAdminServer(
+    {} as unknown as DatabaseClient,
+    undefined,
+    queueJobReader,
+  );
+  try {
+    const response = await fetch(
+      `${baseUrl}/api/v1/admin/operations/queue/jobs/catalog-openrouter-sync-6-hourly`,
+      { headers: { "x-test-role": "admin" } },
+    );
+    const body = await response.json() as { as_of: string; job: Record<string, unknown> };
+    assert.equal(response.status, 200);
+    assert.ok(Number.isFinite(Date.parse(body.as_of)));
+    assert.deepEqual(body.job, {
+      id: "catalog-openrouter-sync-6-hourly",
+      name: "catalog.openrouter.sync",
+      state: "failed",
+      attempts_made: 3,
+      attempts_allowed: 3,
+      created_at: "2026-11-17T03:00:00.000Z",
+      processed_at: "2026-11-17T03:00:01.000Z",
+      finished_at: "2026-11-17T03:00:02.000Z",
+    });
+    assert.deepEqual(requested, ["catalog-openrouter-sync-6-hourly"]);
+    assert.equal(JSON.stringify(body).includes("failedReason"), false);
+    assert.equal(JSON.stringify(body).includes("stacktrace"), false);
+    assert.equal(JSON.stringify(body).includes("payload"), false);
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test("queue job inspection rejects invalid IDs, returns 404 for missing jobs and 503 when unavailable", async () => {
+  let reads = 0;
+  const queueJobReader = { readJob: async () => { reads += 1; return null; } };
+  const { server, baseUrl } = await startAdminServer(
+    {} as unknown as DatabaseClient,
+    undefined,
+    queueJobReader,
+  );
+  try {
+    const invalid = await fetch(
+      `${baseUrl}/api/v1/admin/operations/queue/jobs/bad%20id`,
+      { headers: { "x-test-role": "admin" } },
+    );
+    assert.equal(invalid.status, 400);
+    assert.equal(reads, 0);
+
+    const missing = await fetch(
+      `${baseUrl}/api/v1/admin/operations/queue/jobs/not-found`,
+      { headers: { "x-test-role": "admin" } },
+    );
+    assert.equal(missing.status, 404);
+    assert.equal(reads, 1);
+  } finally {
+    await closeServer(server);
+  }
+
+  const unavailable = await startAdminServer({} as unknown as DatabaseClient);
+  try {
+    const response = await fetch(
+      `${unavailable.baseUrl}/api/v1/admin/operations/queue/jobs/job-123`,
+      { headers: { "x-test-role": "admin" } },
+    );
+    const body = await response.json() as { error?: { code?: string } };
+    assert.equal(response.status, 503);
+    assert.equal(body.error?.code, "QUEUE_INSPECTION_UNAVAILABLE");
+  } finally {
+    await closeServer(unavailable.server);
+  }
 });

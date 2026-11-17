@@ -19,12 +19,14 @@
 - Provider/catalog administration, pricing policy draft/preview/approve/publish and FX management.
 - Payment refund, ledger adjustment, maker-checker approval and reconciliation resolution APIs.
 - Support assignment/administration and CMS authoring/publish workflows.
-- Failed/dead-letter job detail inspection, an explicit DLQ, safe retry/replay controls and operational alerting. The PR #13 endpoint exposes aggregate queue counts only.
+- An explicit DLQ, safe retry/replay controls and operational alerting. PR #15 provides metadata-only single-job inspection; it deliberately does not expose payload/error details or mutate/retry jobs.
 - Audit-log retention/export, field-level redaction policy, immutable audit DB guard verification and access audit.
 - Abuse controls, security/privacy review, dependency scans, penetration/IDOR tests and staging Playwright coverage.
 - Production DB/backup/restore and monitoring decisions remain BE-9 prerequisites.
 
 ## Validation required
+
+- PR #15 adds unit tests for safe BullMQ job projection and API tests for admin-only access, invalid/missing IDs, unavailable queue inspection, and payload/failure-detail non-disclosure. Exact-head CI is pending for this follow-up.
 
 - PR #13 implementation commit `aae8863b7671b468cd0dfca0b6458e09040b9a17` passed [exact-head GitHub Actions run #43673508410](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43673508410). The subsequent status/legal documentation head `c85109d6c43f56ff16d7c0bdb9c527f51f55bf7f` also passed [exact-head run #43673682455](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43673682455), including frozen lockfile install, OpenAPI validation, API lint/typecheck/build/tests and worker checks.
 

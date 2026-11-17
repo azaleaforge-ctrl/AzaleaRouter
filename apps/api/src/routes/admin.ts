@@ -2,9 +2,11 @@ import { Router } from "express";
 import { z } from "zod";
 import type { DatabaseClient } from "@azalea-router/database";
 import { HttpError } from "../lib/http-error.js";
-import type { QueueMetricsReader } from "../operations/queue-metrics.js";
+import type { QueueJobInspectionReader, QueueMetricsReader } from "../operations/queue-metrics.js";
 import { requirePermission } from "../middleware/authorization.js";
 import "../auth/types.js";
+
+const jobIdSchema = z.string().min(1).max(128).regex(/^[A-Za-z0-9:_-]+$/);
 
 const pageSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(25),
@@ -34,6 +36,7 @@ function decimalString(value: { toString(): string } | null | undefined): string
 export interface AdminRouterOptions {
   database: DatabaseClient;
   queueMetrics?: QueueMetricsReader;
+  queueJobReader?: QueueJobInspectionReader;
 }
 
 export function createAdminRouter(options: AdminRouterOptions): Router {
@@ -90,6 +93,31 @@ export function createAdminRouter(options: AdminRouterOptions): Router {
       counts,
       // Failed jobs are not a dead-letter queue. No DLQ is configured by this implementation.
       dead_letter_queue_configured: false,
+    });
+  });
+
+  router.get("/admin/operations/queue/jobs/:jobId", requirePermission("operations:read"), async (req, res) => {
+    const parsedJobId = jobIdSchema.safeParse(req.params.jobId);
+    if (!parsedJobId.success) {
+      throw new HttpError(400, "INVALID_QUEUE_JOB_ID", "The queue job identifier is invalid.");
+    }
+    if (!options.queueJobReader) {
+      throw new HttpError(503, "QUEUE_INSPECTION_UNAVAILABLE", "Queue job inspection is not configured.");
+    }
+
+    let job;
+    try {
+      job = await options.queueJobReader.readJob(parsedJobId.data);
+    } catch {
+      throw new HttpError(503, "QUEUE_INSPECTION_UNAVAILABLE", "Queue job inspection is temporarily unavailable.");
+    }
+    if (!job) {
+      throw new HttpError(404, "QUEUE_JOB_NOT_FOUND", "The queue job was not found.");
+    }
+
+    res.status(200).json({
+      as_of: new Date().toISOString(),
+      job,
     });
   });
 
