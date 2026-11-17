@@ -76,7 +76,7 @@ export function toQueueJobInspection(job: InspectableQueueJob, state: string): Q
     name: safeName,
     state: safeState,
     attempts_made: safeJobCount(job.attemptsMade, 0),
-    attempts_allowed: safeJobCount(job.opts.attempts, 1),
+    attempts_allowed: Math.max(1, safeJobCount(job.opts.attempts, 1)),
     created_at: safeJobTimestamp(job.timestamp),
     processed_at: safeJobTimestamp(job.processedOn),
     finished_at: safeJobTimestamp(job.finishedOn),
