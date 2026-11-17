@@ -5,7 +5,93 @@ export interface QueueMetricsCounts {
   failed: number; paused: number; waiting_children: number; prioritized: number;
 }
 export interface QueueMetricsReader { readCounts(): Promise<QueueMetricsCounts>; }
-export interface ManagedQueueMetricsReader extends QueueMetricsReader { close(): Promise<void>; }
+
+export type QueueJobState =
+  | "completed" | "failed" | "delayed" | "active" | "waiting"
+  | "waiting-children" | "paused" | "prioritized" | "unknown";
+
+export interface QueueJobInspection {
+  id: string;
+  name: string;
+  state: QueueJobState;
+  attempts_made: number;
+  attempts_allowed: number;
+  created_at: string | null;
+  processed_at: string | null;
+  finished_at: string | null;
+}
+
+export interface QueueJobInspectionReader {
+  readJob(jobId: string): Promise<QueueJobInspection | null>;
+}
+
+export interface ManagedQueueMetricsReader extends QueueMetricsReader, QueueJobInspectionReader {
+  close(): Promise<void>;
+}
+
+interface InspectableQueueJob {
+  id?: string;
+  name: string;
+  attemptsMade: number;
+  opts: { attempts?: number };
+  timestamp: number;
+  processedOn?: number;
+  finishedOn?: number;
+}
+
+const safeQueueJobStates = new Set<QueueJobState>([
+  "completed", "failed", "delayed", "active", "waiting",
+  "waiting-children", "paused", "prioritized", "unknown",
+]);
+
+// Only expose the fixed handler names registered by the worker. Unknown/dynamic names
+// may contain customer identifiers or other data and are intentionally masked.
+const safeQueueJobNames = new Set([
+  "system.health-check",
+  "auth.cleanup-expired",
+  "api-keys.cleanup-expired",
+  "wallet.cleanup-expired-reservations",
+  "payments.cleanup-expired",
+  "usage.cleanup-expired",
+  "catalog.openrouter.sync",
+]);
+
+function safeJobTimestamp(value: number | undefined): string | null {
+  if (value === undefined || !Number.isSafeInteger(value) || value < 0) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function safeJobCount(value: number | undefined, fallback: number): number {
+  return value !== undefined && Number.isSafeInteger(value) && value >= 0 && value <= 1_000_000
+    ? value
+    : fallback;
+}
+
+/**
+ * Project BullMQ's internal Job object onto an intentionally small admin DTO.
+ * Never add data, returnvalue, failedReason, stacktrace, or provider/customer payloads here.
+ */
+export function toQueueJobInspection(job: InspectableQueueJob, state: string): QueueJobInspection {
+  const safeId = typeof job.id === "string" && /^[A-Za-z0-9:_-]{1,128}$/.test(job.id)
+    ? job.id
+    : "unknown";
+  const safeName = safeQueueJobNames.has(job.name) ? job.name : "unknown";
+  const safeState = safeQueueJobStates.has(state as QueueJobState)
+    ? state as QueueJobState
+    : "unknown";
+
+  return {
+    id: safeId,
+    name: safeName,
+    state: safeState,
+    attempts_made: safeJobCount(job.attemptsMade, 0),
+    attempts_allowed: Math.max(1, safeJobCount(job.opts.attempts, 1)),
+    created_at: safeJobTimestamp(job.timestamp),
+    processed_at: safeJobTimestamp(job.processedOn),
+    finished_at: safeJobTimestamp(job.finishedOn),
+  };
+}
 
 export function parseQueueRedisConnectionOptions(redisUrl: string) {
   const url = new URL(redisUrl);
@@ -40,6 +126,11 @@ export function createBullMqQueueMetricsReader(redisUrl: string, queueName: stri
   if (!/^[a-zA-Z0-9:_-]{1,100}$/.test(queueName)) throw new Error("WORKER_QUEUE_NAME is invalid.");
   const queue = new Queue(queueName, { connection: parseQueueRedisConnectionOptions(redisUrl) });
   return {
+    async readJob(jobId: string) {
+      const job = await queue.getJob(jobId);
+      if (!job) return null;
+      return toQueueJobInspection(job, await job.getState());
+    },
     async readCounts() {
       const counts = await queue.getJobCounts("waiting", "active", "delayed", "completed", "failed", "paused", "waiting-children", "prioritized");
       return {

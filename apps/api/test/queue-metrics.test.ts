@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseQueueRedisConnectionOptions } from "../src/operations/queue-metrics.js";
+import { parseQueueRedisConnectionOptions, toQueueJobInspection } from "../src/operations/queue-metrics.js";
 
 test("Redis URL parser supports credentials, database index and bounded retries", () => {
   assert.deepEqual(parseQueueRedisConnectionOptions("redis://queue-user:queue-pass@localhost:6380/4"), {
@@ -18,4 +18,61 @@ test("Redis URL parser rejects non-Redis schemes and unsafe URL components", () 
   assert.throws(() => parseQueueRedisConnectionOptions("redis://redis.example.test/1x"), /database/);
   assert.throws(() => parseQueueRedisConnectionOptions("redis://redis.example.test/#fragment"), /components/);
   assert.throws(() => parseQueueRedisConnectionOptions("redis://redis.example.test/?password=secret"), /components/);
+});
+
+
+test("queue job inspection exposes only allowlisted operational metadata", () => {
+  const inspection = toQueueJobInspection({
+    id: "catalog-openrouter-sync-6-hourly",
+    name: "catalog.openrouter.sync",
+    attemptsMade: 3,
+    opts: { attempts: 3 },
+    timestamp: 1_794_700_000_000,
+    processedOn: 1_794_700_001_000,
+    finishedOn: 1_794_700_002_000,
+    data: { customer_email: "private@example.test", prompt: "private prompt" },
+    returnvalue: { upstream_secret: "must-not-leak" },
+    failedReason: "provider token secret",
+    stacktrace: ["private stack trace"],
+  } as never, "failed");
+
+  assert.deepEqual(inspection, {
+    id: "catalog-openrouter-sync-6-hourly",
+    name: "catalog.openrouter.sync",
+    state: "failed",
+    attempts_made: 3,
+    attempts_allowed: 3,
+    created_at: new Date(1_794_700_000_000).toISOString(),
+    processed_at: new Date(1_794_700_001_000).toISOString(),
+    finished_at: new Date(1_794_700_002_000).toISOString(),
+  });
+  const serialized = JSON.stringify(inspection);
+  assert.equal(serialized.includes("private@example.test"), false);
+  assert.equal(serialized.includes("private prompt"), false);
+  assert.equal(serialized.includes("must-not-leak"), false);
+  assert.equal(serialized.includes("provider token secret"), false);
+  assert.equal(serialized.includes("private stack trace"), false);
+});
+
+test("queue job inspection normalizes unknown states, names and timestamps", () => {
+  const inspection = toQueueJobInspection({
+    id: "bad job id",
+    name: "customer-123",
+    attemptsMade: -1,
+    opts: { attempts: 0 },
+    timestamp: Number.NaN,
+    processedOn: -1,
+    finishedOn: undefined,
+  }, "unexpected-state");
+
+  assert.deepEqual(inspection, {
+    id: "unknown",
+    name: "unknown",
+    state: "unknown",
+    attempts_made: 0,
+    attempts_allowed: 1,
+    created_at: null,
+    processed_at: null,
+    finished_at: null,
+  });
 });

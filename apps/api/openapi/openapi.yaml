@@ -1458,6 +1458,51 @@ paths:
         "401": { $ref: "#/components/responses/ErrorResponse" }
         "403": { $ref: "#/components/responses/ErrorResponse" }
         "503": { $ref: "#/components/responses/ErrorResponse" }
+  /admin/operations/queue/jobs/{jobId}:
+    get:
+      operationId: getAdminQueueJob
+      summary: Read safe metadata for one BullMQ job without exposing its payload or failure details
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+            pattern: '^[A-Za-z0-9:_-]+$'
+      responses:
+        "200":
+          description: Safe operational metadata for the requested job
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [as_of, job]
+                properties:
+                  as_of: { type: string, format: date-time }
+                  job:
+                    type: object
+                    additionalProperties: false
+                    required: [id, name, state, attempts_made, attempts_allowed, created_at, processed_at, finished_at]
+                    properties:
+                      id: { type: string, maxLength: 128 }
+                      name: { type: string, maxLength: 100 }
+                      state:
+                        type: string
+                        enum: [completed, failed, delayed, active, waiting, waiting-children, paused, prioritized, unknown]
+                      attempts_made: { type: integer, minimum: 0 }
+                      attempts_allowed: { type: integer, minimum: 0 }
+                      created_at: { type: [string, "null"], format: date-time }
+                      processed_at: { type: [string, "null"], format: date-time }
+                      finished_at: { type: [string, "null"], format: date-time }
+        "400": { $ref: "#/components/responses/ErrorResponse" }
+        "401": { $ref: "#/components/responses/ErrorResponse" }
+        "403": { $ref: "#/components/responses/ErrorResponse" }
+        "404": { $ref: "#/components/responses/ErrorResponse" }
+        "503": { $ref: "#/components/responses/ErrorResponse" }
   /admin/usage/reconciliation:
     get:
       operationId: listAdminUsageReconciliation
