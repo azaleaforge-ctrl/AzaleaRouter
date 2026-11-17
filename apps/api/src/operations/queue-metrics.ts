@@ -44,6 +44,18 @@ const safeQueueJobStates = new Set<QueueJobState>([
   "waiting-children", "paused", "prioritized", "unknown",
 ]);
 
+// Only expose the fixed handler names registered by the worker. Unknown/dynamic names
+// may contain customer identifiers or other data and are intentionally masked.
+const safeQueueJobNames = new Set([
+  "system.health-check",
+  "auth.cleanup-expired",
+  "api-keys.cleanup-expired",
+  "wallet.cleanup-expired-reservations",
+  "payments.cleanup-expired",
+  "usage.cleanup-expired",
+  "catalog.openrouter.sync",
+]);
+
 function safeJobTimestamp(value: number | undefined): string | null {
   if (value === undefined || !Number.isSafeInteger(value) || value < 0) return null;
   const date = new Date(value);
@@ -64,9 +76,7 @@ export function toQueueJobInspection(job: InspectableQueueJob, state: string): Q
   const safeId = typeof job.id === "string" && /^[A-Za-z0-9:_-]{1,128}$/.test(job.id)
     ? job.id
     : "unknown";
-  const safeName = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(job.name)
-    ? job.name
-    : "unknown";
+  const safeName = safeQueueJobNames.has(job.name) ? job.name : "unknown";
   const safeState = safeQueueJobStates.has(state as QueueJobState)
     ? state as QueueJobState
     : "unknown";

@@ -57,7 +57,7 @@ test("queue job inspection exposes only allowlisted operational metadata", () =>
 test("queue job inspection normalizes unknown states, names and timestamps", () => {
   const inspection = toQueueJobInspection({
     id: "bad job id",
-    name: "job name with spaces",
+    name: "customer-123",
     attemptsMade: -1,
     opts: { attempts: 0 },
     timestamp: Number.NaN,
