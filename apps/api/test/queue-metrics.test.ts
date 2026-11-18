@@ -76,3 +76,18 @@ test("queue job inspection normalizes unknown states, names and timestamps", () 
     finished_at: null,
   });
 });
+
+
+test("queue job inspection masks valid-looking IDs for unrecognized job types", () => {
+  const inspection = toQueueJobInspection({
+    id: "customer-123",
+    name: "customer.export",
+    attemptsMade: 1,
+    opts: { attempts: 3 },
+    timestamp: 1_794_700_000_000,
+  }, "failed");
+
+  assert.equal(inspection.id, "unknown");
+  assert.equal(inspection.name, "unknown");
+  assert.equal(JSON.stringify(inspection).includes("customer-123"), false);
+});

@@ -8,6 +8,8 @@
 
 - Read-only `GET /api/v1/admin/operations/summary` for pending usage reconciliation, payment webhooks, outbox delivery and quarantined files.
 - PR #13 adds permission-scoped `GET /api/v1/admin/operations/queue` with aggregate BullMQ waiting/active/delayed/completed/failed/paused/waiting-children/prioritized counts. It returns no job payloads or failure text, fails closed when Redis is unavailable, and explicitly states that no dead-letter queue is configured.
+- PR #15 adds permission-scoped `GET /api/v1/admin/operations/queue/jobs/{jobId}` for allowlisted job name/state, attempt counters and timestamps; it excludes payloads, return values, failure text and stack traces.
+- PR #16 masks the raw job ID as well as the name for unrecognized/dynamic job types, because custom identifiers can contain tenant/user data. Only IDs for fixed worker handlers in the service allowlist are returned.
 - Read-only `GET /api/v1/admin/usage/reconciliation` with bounded cursor pagination and decimal/BigInt-safe response serialization.
 - Read-only `GET /api/v1/admin/audit-logs` with actor/action/resource/time filters.
 - Audit response deliberately excludes raw before/after JSON; it exposes only presence flags so secrets or PII embedded in snapshots are not returned by default.
@@ -27,6 +29,8 @@
 ## Validation required
 
 - PR #15 adds unit tests for safe BullMQ job projection and API tests for admin-only access, invalid/missing IDs, unavailable queue inspection, and payload/failure-detail non-disclosure. Implementation head `814bc93565e29a9b80ee2b067c9bd45afd6d7ac6` passed exact-head PR CI [#44011088296](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/44011088296) and push CI [#44011082836](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/44011082836); the evidence-documentation head `f33fddc6f17e703bf6da2562a336e5217199bbfb` also passed exact-head PR CI [#44011390213](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/44011390213) and push CI [#44011384302](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/44011384302). The latest commit is documentation-only.
+
+- PR #16 adds a regression test proving a syntactically valid customer-specific ID is not returned for an unrecognized job type. Code/test head `f713e4c6a727d7cab2509c502716ddee5d78a136` passed exact-head GitHub Actions [#44234066263](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/44234066263), including frozen install, workspace lint/typecheck/build/tests, migrations and OpenAPI validation. The subsequent evidence-documentation commit is documentation-only; its final PR-head CI is verified separately from the implementation/test commit.
 
 - PR #13 implementation commit `aae8863b7671b468cd0dfca0b6458e09040b9a17` passed [exact-head GitHub Actions run #43673508410](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43673508410). The subsequent status/legal documentation head `c85109d6c43f56ff16d7c0bdb9c527f51f55bf7f` also passed [exact-head run #43673682455](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43673682455), including frozen lockfile install, OpenAPI validation, API lint/typecheck/build/tests and worker checks.
 

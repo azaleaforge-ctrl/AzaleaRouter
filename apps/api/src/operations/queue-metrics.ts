@@ -73,10 +73,15 @@ function safeJobCount(value: number | undefined, fallback: number): number {
  * Never add data, returnvalue, failedReason, stacktrace, or provider/customer payloads here.
  */
 export function toQueueJobInspection(job: InspectableQueueJob, state: string): QueueJobInspection {
-  const safeId = typeof job.id === "string" && /^[A-Za-z0-9:_-]{1,128}$/.test(job.id)
+  const safeName = safeQueueJobNames.has(job.name) ? job.name : "unknown";
+  // Dynamic/unknown job types may use IDs containing tenant or user identifiers.
+  // Only expose IDs for the fixed worker handlers whose scheduled IDs are controlled
+  // by this service; mask both fields for every unrecognized job type.
+  const safeId = safeName !== "unknown"
+    && typeof job.id === "string"
+    && /^[A-Za-z0-9:_-]{1,128}$/.test(job.id)
     ? job.id
     : "unknown";
-  const safeName = safeQueueJobNames.has(job.name) ? job.name : "unknown";
   const safeState = safeQueueJobStates.has(state as QueueJobState)
     ? state as QueueJobState
     : "unknown";
