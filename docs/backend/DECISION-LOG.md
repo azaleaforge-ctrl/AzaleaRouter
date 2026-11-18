@@ -2,7 +2,7 @@
 
 **Status:** Working register; not a substitute for owner approval, legal advice, contracts, or provider credentials.  
 **Source:** Backend PRD v0.4, Sections 15–18.  
-**Last updated:** 17 November 2026 (Asia/Jakarta).
+**Last updated:** 18 November 2026 (Asia/Jakarta).
 
 ## Decision principles
 
@@ -60,3 +60,4 @@
 | 17 Nov 2026 | Rechecked the official public Terms (last updated 31 Aug 2026) and Enterprise Access Agreement template (last updated 22 Jun 2026). Public Terms §7.4 continues to prohibit resale/competing-service use and §7.5 restricts automated scraping/copying; EAA §2.1 and §2.3.7 remain non-transferable/non-sublicensable and prohibit renting/reselling/third-party access. Automated catalog synchronization also needs written scope clarification. No executed Order Form, DPA or AzaleaRouter-specific written approval is recorded. D-05 remains blocked. |
 | 18 Nov 2026 | Rechecked the live official Terms and EAA. Public Terms §5.1–§5.2 acknowledges incorporated-product customer access and flow-down, but §7.4–§7.5 separately restricts resale/competing services and automated scraping/copying. EAA §2.1 contemplates End Customers but §2.3.7 prohibits resale/third-party access; the agreement requires an executed Order Form and DPA. No AzaleaRouter-specific signed scope approval is recorded; D-05 remains blocked. |
 | 18 Nov 2026 | BE-8 privacy follow-up masks the raw BullMQ job ID whenever the job name is not one of the fixed worker handlers; added a regression test for a valid-looking customer-specific ID. This is metadata minimization only and does not enable DLQ, retry/replay, or queue mutation. |
+| 18 Nov 2026 | BE-7 attachment linking now locks owned file rows in deterministic order inside the message transaction, revalidates single-use ownership/conversation scope and scan status, and assigns unbound files to the target conversation. No production storage or scanner decision is implied. |

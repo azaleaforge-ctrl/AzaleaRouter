@@ -4,6 +4,7 @@ import type { DatabaseClient } from "@azalea-router/database";
 import { requireActiveAccount } from "../middleware/authorization.js";
 import { requireCsrf } from "../middleware/csrf.js";
 import { HttpError } from "../lib/http-error.js";
+import { lockAndValidateMessageAttachments } from "./conversation-attachments.js";
 import "../auth/types.js";
 
 const titleSchema = z.string().trim().min(1).max(160);
@@ -15,7 +16,10 @@ const createConversationSchema = z.object({
 const messageSchema = z.object({
   text: z.string().max(100_000).optional(),
   attachment_ids: z.array(z.string().uuid()).max(10).default([]),
-}).strict();
+}).strict().refine(
+  (value) => new Set(value.attachment_ids).size === value.attachment_ids.length,
+  { message: "Attachment IDs must be unique.", path: ["attachment_ids"] },
+);
 
 const listSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(25),
@@ -288,30 +292,16 @@ export function createConversationRouter(options: ConversationRouterOptions): Ro
     });
     if (!conversation) throw new HttpError(404, "CONVERSATION_NOT_FOUND", "Conversation was not found.");
 
-    let attachments: Array<{ id: string; fileSize: bigint; status: string; scanVerdict: string | null }> = [];
-    if (input.attachment_ids.length) {
-      attachments = await options.database.fileAttachment.findMany({
-        where: {
-          id: { in: input.attachment_ids },
-          userId: req.auth!.userId,
-          deletedAt: null,
-        },
-        select: { id: true, fileSize: true, status: true, scanVerdict: true },
-      });
-      if (attachments.length !== input.attachment_ids.length) {
-        throw new HttpError(404, "ATTACHMENT_NOT_FOUND", "One or more attachments were not found.");
-      }
-      if (attachments.some((item) => item.status !== "CLEAN" || item.scanVerdict !== "clean")) {
-        throw new HttpError(423, "ATTACHMENT_QUARANTINED", "Attachments must pass malware scanning before use in a message.");
-      }
-      const aggregateSize = attachments.reduce((total, item) => total + item.fileSize, 0n);
-      if (aggregateSize > 50n * 1024n * 1024n) {
-        throw new HttpError(413, "MESSAGE_ATTACHMENTS_TOO_LARGE", "Combined message attachments may not exceed 50 MiB.");
-      }
-    }
-
     try {
       const message = await options.database.$transaction(async (tx) => {
+        if (input.attachment_ids.length > 0) {
+          await lockAndValidateMessageAttachments(tx, {
+            userId: req.auth!.userId,
+            conversationId: id,
+            attachmentIds: input.attachment_ids,
+          });
+        }
+
         const created = await tx.chatMessage.create({
           data: {
             conversationId: id,
