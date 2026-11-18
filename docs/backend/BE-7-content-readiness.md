@@ -1,13 +1,14 @@
 # BE-7 — Conversations, Files, Notifications, Support and Content
 
-**Status:** Partial implementation on `feat/backend-content-be7`; not stage-complete.
-**Branch head:** `8e2c5b1e6669e9fa851af36f348d9c6a092bc18f`.
+**Status:** Partial implementation on `feat/backend-content-be7` with a transaction-safe attachment-linking follow-up in PR #17; not stage-complete.
+**Original BE-7 branch head:** `8e2c5b1e6669e9fa851af36f348d9c6a092bc18f`.
 **Production state:** no production object-storage provider, region, malware scanner, or retention/legal policy is configured.
 
 ## Implemented in this increment
 
 - Owner-scoped conversation create/list/read/update/archive/soft-delete endpoints.
 - User message persistence with idempotency keys, attachment ownership checks, stable cursor pagination, and safe outbox metadata.
+- PR #17 moves attachment validation into the message transaction, locks owned rows in deterministic ID order, rejects files already linked to a message or another conversation, assigns unbound files to the current conversation, and rejects duplicate attachment IDs. Clean-scan and 50 MiB aggregate checks remain inside the same transaction.
 - Private local filesystem object-storage adapter with random object keys, restrictive directory/file modes, path validation, checksum and size verification.
 - MIME allowlist and content sniffing for PDF, DOCX, TXT, Markdown, CSV, JSON, JPEG, PNG and WEBP.
 - Quarantine-first file state; `UnavailableFileScanner` returns an unknown verdict and therefore leaves files quarantined. Non-clean files cannot be downloaded or attached to messages.
@@ -30,6 +31,7 @@
 ## Validation required
 
 - Exact-head CI for the current branch, including migration deployment on an empty PostgreSQL database and fixture database.
+- PR #17 code/test head `a97771a3e4f9d0e03df9caa82f7887e048573487` passed exact-head GitHub Actions [#44234796976](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/44234796976), including frozen installation, workspace lint/typecheck/build, migrations, API tests and worker checks.
 - Cross-user IDOR tests for conversations, messages, files, notifications, tickets and assigned support.
 - Upload tests for MIME spoofing, size/quota, path traversal, quarantine, scanner clean/malicious/unknown outcomes, checksum mismatch and deletion failure.
 - Staging E2E for conversation lifecycle, attachments, support and published content.
