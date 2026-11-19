@@ -285,6 +285,37 @@ test("competing reservations and concurrent settlement never overdraw or post du
     assert.equal(finalBalance.ledgerBalance, "55000");
     assert.equal(finalBalance.reservedBalance, "0");
     assert.equal(finalBalance.availableBalance, "55000");
+
+    const duplicateKey = `test-same-reservation-${randomUUID()}`;
+    const duplicateRequests = await Promise.all([
+      walletService.reserve({
+        userId: user.id,
+        amount: "1000",
+        idempotencyKey: duplicateKey,
+        expiresAt: reserveExpiry(),
+      }),
+      walletService.reserve({
+        userId: user.id,
+        amount: "1000",
+        idempotencyKey: duplicateKey,
+        expiresAt: reserveExpiry(),
+      }),
+    ]);
+    assert.equal(duplicateRequests[0]!.reservationId, duplicateRequests[1]!.reservationId);
+    const duplicateRows = await database.walletReservation.findMany({
+      where: { idempotencyKey: duplicateKey },
+    });
+    assert.equal(duplicateRows.length, 1);
+    await assert.rejects(walletService.reserve({
+      userId: user.id,
+      amount: "2000",
+      idempotencyKey: duplicateKey,
+      expiresAt: reserveExpiry(),
+    }), /IDEMPOTENCY_KEY_CONFLICT/);
+
+    const afterDuplicateRequests = await walletService.getBalance(user.id);
+    assert.equal(afterDuplicateRequests.reservedBalance, "1000");
+    assert.equal(afterDuplicateRequests.availableBalance, "54000");
   } finally {
     // Financial rows are intentionally retained in this disposable CI database.
     await database.$disconnect();
