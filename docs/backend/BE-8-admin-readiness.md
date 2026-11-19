@@ -35,7 +35,7 @@
 
 - PR #13 implementation commit `aae8863b7671b468cd0dfca0b6458e09040b9a17` passed [exact-head GitHub Actions run #43673508410](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43673508410). The subsequent status/legal documentation head `c85109d6c43f56ff16d7c0bdb9c527f51f55bf7f` also passed [exact-head run #43673682455](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43673682455), including frozen lockfile install, OpenAPI validation, API lint/typecheck/build/tests and worker checks.
 
-- PR #18 adds authorization, pagination bounds, sanitized Redis-failure and metadata non-disclosure tests, plus a Redis-backed integration test with a fixed worker job and an unrecognized customer-specific job ID. Exact-head GitHub Actions evidence is pending.
+- PR #18 adds authorization, pagination bounds, sanitized Redis-failure and metadata non-disclosure tests, plus a Redis-backed integration test with a fixed worker job and an unrecognized customer-specific job ID. Exact-head GitHub Actions [#44453138628](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/44453138628) passed on `7558bf5c6244291841c353105f27f51e02c65080`, including frozen install, database migrations, OpenAPI validation, API tests and worker Redis integration tests.
 - Exact-head CI for the BE-8 branch, including API lint, typecheck, build, OpenAPI lint and tests.
 - PostgreSQL integration tests for reconciliation queries and audit access.
 - Cross-role tests: anonymous/user/support denied; admin and super-admin only as permission policy allows.
