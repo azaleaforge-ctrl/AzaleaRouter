@@ -35,6 +35,30 @@ function decimalString(value: { toString(): string } | string): string {
   return typeof value === "string" ? value : value.toString();
 }
 
+function isSerializationConflict(error: unknown): boolean {
+  return error !== null
+    && typeof error === "object"
+    && "code" in error
+    && String((error as { code?: unknown }).code) === "P2034";
+}
+
+/**
+ * Retry only database serialization/deadlock conflicts. The callback contains
+ * database work only, so a rolled-back attempt can be safely executed again.
+ * Idempotency constraints remain the final guard against duplicate writes.
+ */
+async function runSerializableWithRetry<T>(operation: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (!isSerializationConflict(error) || attempt === 2) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 10 * (attempt + 1)));
+    }
+  }
+  throw new Error("SERIALIZABLE_RETRY_EXHAUSTED");
+}
+
 async function lockWalletAccount(tx: WalletTransactionClient, userId: string): Promise<{
   id: string;
   ledgerAccountId: string;
@@ -222,10 +246,10 @@ export class WalletService {
     idempotencyKey: string;
     expiresAt: Date;
   }): Promise<WalletReservationResult> {
-    return this.database.$transaction(
+    return runSerializableWithRetry(() => this.database.$transaction(
       (tx) => this.reserveInTransaction(tx, input),
       { isolationLevel: "Serializable", timeout: 15_000 },
-    );
+    ));
   }
 
   async settleReservationInTransaction(
@@ -368,10 +392,10 @@ export class WalletService {
     idempotencyKey: string;
     actualAmount: string;
   }): Promise<WalletReservationResult> {
-    return this.database.$transaction(
+    return runSerializableWithRetry(() => this.database.$transaction(
       (tx) => this.settleReservationInTransaction(tx, input),
       { isolationLevel: "Serializable", timeout: 15_000 },
-    );
+    ));
   }
 
   async releaseReservationInTransaction(
@@ -411,10 +435,10 @@ export class WalletService {
   }
 
   async releaseReservation(userId: string, reservationId: string): Promise<WalletReservationResult> {
-    return this.database.$transaction(
+    return runSerializableWithRetry(() => this.database.$transaction(
       (tx) => this.releaseReservationInTransaction(tx, userId, reservationId),
       { isolationLevel: "Serializable", timeout: 15_000 },
-    );
+    ));
   }
 
 }
