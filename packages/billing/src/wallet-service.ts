@@ -424,10 +424,43 @@ export class WalletService {
     idempotencyKey: string;
     actualAmount: string;
   }): Promise<WalletReservationResult> {
-    return runSerializableWithRetry(() => this.database.$transaction(
-      (tx) => this.settleReservationInTransaction(tx, input),
-      { isolationLevel: "Serializable", timeout: 15_000 },
-    ));
+    try {
+      return await runSerializableWithRetry(() => this.database.$transaction(
+        (tx) => this.settleReservationInTransaction(tx, input),
+        { isolationLevel: "Serializable", timeout: 15_000 },
+      ));
+    } catch (error) {
+      // A concurrent retry using the same settlement key may lose the unique
+      // insert race after the winning transaction commits. Return only the
+      // exact posted settlement attached to this reservation and amount.
+      if (!isUniqueConstraintConflict(error)) throw error;
+      const [reservation, transaction] = await Promise.all([
+        this.database.walletReservation.findUnique({ where: { id: input.reservationId } }),
+        this.database.ledgerTransaction.findUnique({ where: { idempotencyKey: input.idempotencyKey } }),
+      ]);
+      if (!reservation || reservation.userId !== input.userId) throw new Error("RESERVATION_NOT_FOUND");
+      const settledAmount = parseIdrAmount(decimalString(reservation.settledAmount ?? "0"));
+      if (reservation.status !== "settled"
+        || settledAmount !== parseIdrAmount(input.actualAmount)
+        || !transaction
+        || transaction.id !== reservation.ledgerTransactionId
+        || transaction.transactionType !== "usage_settlement"
+        || transaction.referenceType !== "wallet_reservation"
+        || transaction.referenceId !== reservation.id
+        || transaction.status !== "posted") {
+        throw new Error("SETTLEMENT_IDEMPOTENCY_CONFLICT");
+      }
+      return {
+        reservationId: reservation.id,
+        idempotencyKey: reservation.idempotencyKey,
+        amount: decimalString(reservation.amount),
+        settledAmount: decimalString(reservation.settledAmount ?? "0"),
+        currency: "IDR",
+        status: reservation.status,
+        expiresAt: reservation.expiresAt,
+        ledgerTransactionId: transaction.id,
+      };
+    }
   }
 
   async releaseReservationInTransaction(
