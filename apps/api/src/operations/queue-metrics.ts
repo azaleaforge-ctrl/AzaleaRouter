@@ -25,7 +25,16 @@ export interface QueueJobInspectionReader {
   readJob(jobId: string): Promise<QueueJobInspection | null>;
 }
 
-export interface ManagedQueueMetricsReader extends QueueMetricsReader, QueueJobInspectionReader {
+export interface QueueFailedJobsPage {
+  data: QueueJobInspection[];
+  total: number;
+}
+
+export interface QueueFailedJobsReader {
+  readFailedJobs(offset: number, limit: number): Promise<QueueFailedJobsPage>;
+}
+
+export interface ManagedQueueMetricsReader extends QueueMetricsReader, QueueJobInspectionReader, QueueFailedJobsReader {
   close(): Promise<void>;
 }
 
@@ -135,6 +144,22 @@ export function createBullMqQueueMetricsReader(redisUrl: string, queueName: stri
       const job = await queue.getJob(jobId);
       if (!job) return null;
       return toQueueJobInspection(job, await job.getState());
+    },
+    async readFailedJobs(offset: number, limit: number) {
+      if (!Number.isSafeInteger(offset) || offset < 0 || offset > 5_000) {
+        throw new Error("Failed-job offset is outside the supported range.");
+      }
+      if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+        throw new Error("Failed-job limit is outside the supported range.");
+      }
+      const [jobs, total] = await Promise.all([
+        queue.getFailed(offset, offset + limit - 1),
+        queue.getFailedCount(),
+      ]);
+      const data = await Promise.all(jobs.map(async (job) => (
+        toQueueJobInspection(job, await job.getState())
+      )));
+      return { data, total };
     },
     async readCounts() {
       const counts = await queue.getJobCounts("waiting", "active", "delayed", "completed", "failed", "paused", "waiting-children", "prioritized");

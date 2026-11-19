@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { parseQueueRedisConnectionOptions, toQueueJobInspection } from "../src/operations/queue-metrics.js";
+import { Queue, Worker } from "bullmq";
+import {
+  createBullMqQueueMetricsReader,
+  parseQueueRedisConnectionOptions,
+  toQueueJobInspection,
+} from "../src/operations/queue-metrics.js";
 
 test("Redis URL parser supports credentials, database index and bounded retries", () => {
   assert.deepEqual(parseQueueRedisConnectionOptions("redis://queue-user:queue-pass@localhost:6380/4"), {
@@ -90,4 +96,77 @@ test("queue job inspection masks valid-looking IDs for unrecognized job types", 
   assert.equal(inspection.id, "unknown");
   assert.equal(inspection.name, "unknown");
   assert.equal(JSON.stringify(inspection).includes("customer-123"), false);
+});
+
+
+test("failed queue reader lists metadata only and masks dynamic job identifiers", {
+  skip: !process.env.REDIS_URL,
+}, async () => {
+  const redisUrl = process.env.REDIS_URL!;
+  const queueName = `queue-metrics-failed-${randomUUID()}`;
+  const connection = parseQueueRedisConnectionOptions(redisUrl);
+  const queue = new Queue(queueName, { connection });
+  const worker = new Worker(queueName, async () => {
+    throw new Error("private provider failure with secret token");
+  }, { connection, concurrency: 2 });
+  const reader = createBullMqQueueMetricsReader(redisUrl, queueName);
+
+  try {
+    await worker.waitUntilReady();
+    const failed = new Promise<void>((resolve, reject) => {
+      const seen = new Set<string>();
+      const timeout = setTimeout(() => {
+        worker.off("failed", onFailed);
+        reject(new Error("Timed out waiting for failed queue jobs."));
+      }, 10_000);
+      const onFailed = (job?: { id?: string }) => {
+        if (job?.id) seen.add(job.id);
+        if (seen.size === 2) {
+          clearTimeout(timeout);
+          worker.off("failed", onFailed);
+          resolve();
+        }
+      };
+      worker.on("failed", onFailed);
+    });
+
+    await Promise.all([
+      queue.add("system.health-check", { private_email: "private@example.test" }, {
+        jobId: "safe-job-1",
+        attempts: 1,
+        removeOnFail: false,
+      }),
+      queue.add("customer.export", { private_email: "private@example.test" }, {
+        jobId: "customer-123",
+        attempts: 1,
+        removeOnFail: false,
+      }),
+    ]);
+    await failed;
+
+    const page = await reader.readFailedJobs(0, 10);
+    assert.equal(page.total, 2);
+    assert.equal(page.data.length, 2);
+
+    const known = page.data.find((job) => job.name === "system.health-check");
+    const unknown = page.data.find((job) => job.name === "unknown");
+    assert.equal(known?.id, "safe-job-1");
+    assert.equal(known?.state, "failed");
+    assert.equal(unknown?.id, "unknown");
+    assert.equal(unknown?.state, "failed");
+
+    const serialized = JSON.stringify(page);
+    assert.equal(serialized.includes("customer-123"), false);
+    assert.equal(serialized.includes("private@example.test"), false);
+    assert.equal(serialized.includes("private provider failure"), false);
+    assert.equal(serialized.includes("secret token"), false);
+    assert.equal(serialized.includes("failedReason"), false);
+    assert.equal(serialized.includes("stacktrace"), false);
+    assert.equal(serialized.includes("data"), true);
+  } finally {
+    await reader.close();
+    await worker.close();
+    await queue.obliterate({ force: true });
+    await queue.close();
+  }
 });
