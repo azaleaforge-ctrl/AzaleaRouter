@@ -9,7 +9,7 @@
 
 - Wallet reserve, settle and release operations now retry only Prisma P2034 serialization/deadlock conflicts up to three attempts with short bounded backoff. Reserve and settle also resolve P2002 idempotency-key races by verifying the committed owner/reference/amount before returning an existing result. No external side effects run inside the retry callback.
 - PostgreSQL integration coverage races two 80,000-IDR reservations against a 125,000-IDR wallet, submits two concurrent reservations with the same idempotency key, and races two settlement calls with the same key. It asserts only one competing hold is admitted, same-key calls return one reservation/settlement, mismatched key reuse is rejected, exactly one settlement transaction is posted, debit equals credit, and the final available balance is non-negative.
-- PR #19 exact-head CI [#44453745220](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/44453745220) passed on the wallet code/test head; final status/evidence head [#44453928891](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/44453928891) also passed with PostgreSQL, Redis, billing, API, OpenAPI and worker checks.
+- PR #19 exact-head CI [#44453745220](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/44453745220) passed on the wallet code/test head; final status/evidence head [#44453928891](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/44453928891) also passed with PostgreSQL, Redis, billing, API, OpenAPI and worker checks. The subsequent documentation/evidence head `688e88d211177dcc7bd707aa7416037de6f5668a` also passed exact-head CI [#44454206685](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/44454206685).
 
 ## Implemented in this increment
 
