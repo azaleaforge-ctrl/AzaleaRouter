@@ -42,6 +42,13 @@ function isSerializationConflict(error: unknown): boolean {
     && String((error as { code?: unknown }).code) === "P2034";
 }
 
+function isUniqueConstraintConflict(error: unknown): boolean {
+  return error !== null
+    && typeof error === "object"
+    && "code" in error
+    && String((error as { code?: unknown }).code) === "P2002";
+}
+
 /**
  * Retry only database serialization/deadlock conflicts. The callback contains
  * database work only, so a rolled-back attempt can be safely executed again.
@@ -246,10 +253,35 @@ export class WalletService {
     idempotencyKey: string;
     expiresAt: Date;
   }): Promise<WalletReservationResult> {
-    return runSerializableWithRetry(() => this.database.$transaction(
-      (tx) => this.reserveInTransaction(tx, input),
-      { isolationLevel: "Serializable", timeout: 15_000 },
-    ));
+    try {
+      return await runSerializableWithRetry(() => this.database.$transaction(
+        (tx) => this.reserveInTransaction(tx, input),
+        { isolationLevel: "Serializable", timeout: 15_000 },
+      ));
+    } catch (error) {
+      // Two requests with the same idempotency key can both observe no row
+      // before one inserts. Resolve the unique-key race by returning the
+      // committed reservation only when its owner and amount match.
+      if (!isUniqueConstraintConflict(error)) throw error;
+      const existing = await this.database.walletReservation.findUnique({
+        where: { idempotencyKey: input.idempotencyKey },
+      });
+      if (!existing) throw error;
+      if (existing.userId !== input.userId
+        || parseIdrAmount(decimalString(existing.amount)) !== parseIdrAmount(input.amount)) {
+        throw new Error("IDEMPOTENCY_KEY_CONFLICT");
+      }
+      return {
+        reservationId: existing.id,
+        idempotencyKey: existing.idempotencyKey,
+        amount: decimalString(existing.amount),
+        ...(existing.settledAmount === null ? {} : { settledAmount: decimalString(existing.settledAmount) }),
+        currency: "IDR",
+        status: existing.status,
+        expiresAt: existing.expiresAt,
+        ledgerTransactionId: existing.ledgerTransactionId,
+      };
+    }
   }
 
   async settleReservationInTransaction(
