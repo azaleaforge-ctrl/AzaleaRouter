@@ -229,7 +229,6 @@ test("competing reservations and concurrent settlement never overdraw or post du
 
     const reservationId = successfulReservations[0]!.value.reservationId;
     const settleKeyA = `test-race-settle-a-${randomUUID()}`;
-    const settleKeyB = `test-race-settle-b-${randomUUID()}`;
     const settleAttempts = await Promise.allSettled([
       walletService.settleReservation({
         userId: user.id,
@@ -240,14 +239,14 @@ test("competing reservations and concurrent settlement never overdraw or post du
       walletService.settleReservation({
         userId: user.id,
         reservationId,
-        idempotencyKey: settleKeyB,
+        idempotencyKey: settleKeyA,
         actualAmount: "70000",
       }),
     ]);
     const successfulSettlements = settleAttempts.filter(
       (result): result is PromiseFulfilledResult<Awaited<ReturnType<WalletService["settleReservation"]>>> => result.status === "fulfilled",
     );
-    assert.ok(successfulSettlements.length >= 1, "at least one concurrent settlement must commit");
+    assert.equal(successfulSettlements.length, 2, "concurrent calls with the same settlement key must return the committed result");
 
     const retry = await walletService.settleReservation({
       userId: user.id,
@@ -261,6 +260,12 @@ test("competing reservations and concurrent settlement never overdraw or post du
     for (const result of successfulSettlements) {
       assert.equal(result.value.ledgerTransactionId, settlementTransactionId);
     }
+    await assert.rejects(walletService.settleReservation({
+      userId: user.id,
+      reservationId,
+      idempotencyKey: settleKeyA,
+      actualAmount: "69999",
+    }), /SETTLEMENT_IDEMPOTENCY_CONFLICT/);
 
     const settlementTransactions = await database.ledgerTransaction.findMany({
       where: {
