@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import type { DatabaseClient } from "@azalea-router/database";
 import { HttpError } from "../lib/http-error.js";
-import type { QueueJobInspectionReader, QueueMetricsReader } from "../operations/queue-metrics.js";
+import type { QueueFailedJobsReader, QueueJobInspectionReader, QueueMetricsReader } from "../operations/queue-metrics.js";
 import { requirePermission } from "../middleware/authorization.js";
 import "../auth/types.js";
 
@@ -11,6 +11,11 @@ const jobIdSchema = z.string().min(1).max(128).regex(/^[A-Za-z0-9:_-]+$/);
 const pageSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(25),
   cursor: z.string().uuid().optional(),
+}).strict();
+
+const failedJobsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  offset: z.coerce.number().int().min(0).max(5_000).default(0),
 }).strict();
 
 const auditQuerySchema = pageSchema.extend({
@@ -37,6 +42,7 @@ export interface AdminRouterOptions {
   database: DatabaseClient;
   queueMetrics?: QueueMetricsReader;
   queueJobReader?: QueueJobInspectionReader;
+  queueFailedJobsReader?: QueueFailedJobsReader;
 }
 
 export function createAdminRouter(options: AdminRouterOptions): Router {
@@ -93,6 +99,34 @@ export function createAdminRouter(options: AdminRouterOptions): Router {
       counts,
       // Failed jobs are not a dead-letter queue. No DLQ is configured by this implementation.
       dead_letter_queue_configured: false,
+    });
+  });
+
+  router.get("/admin/operations/queue/failed", requirePermission("operations:read"), async (req, res) => {
+    const query = failedJobsQuerySchema.parse(req.query);
+    if (!options.queueFailedJobsReader) {
+      throw new HttpError(503, "QUEUE_FAILED_JOBS_UNAVAILABLE", "Failed queue job inspection is not configured.");
+    }
+
+    let page;
+    try {
+      page = await options.queueFailedJobsReader.readFailedJobs(query.offset, query.limit);
+    } catch {
+      throw new HttpError(503, "QUEUE_FAILED_JOBS_UNAVAILABLE", "Failed queue job inspection is temporarily unavailable.");
+    }
+
+    const nextOffset = query.offset + page.data.length < page.total
+      ? query.offset + page.data.length
+      : null;
+    res.status(200).json({
+      as_of: new Date().toISOString(),
+      data: page.data,
+      pagination: {
+        offset: query.offset,
+        limit: query.limit,
+        total: page.total,
+        next_offset: nextOffset,
+      },
     });
   });
 
