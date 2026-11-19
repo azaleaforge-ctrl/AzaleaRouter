@@ -10,6 +10,7 @@
 - PR #13 adds permission-scoped `GET /api/v1/admin/operations/queue` with aggregate BullMQ waiting/active/delayed/completed/failed/paused/waiting-children/prioritized counts. It returns no job payloads or failure text, fails closed when Redis is unavailable, and explicitly states that no dead-letter queue is configured.
 - PR #15 adds permission-scoped `GET /api/v1/admin/operations/queue/jobs/{jobId}` for allowlisted job name/state, attempt counters and timestamps; it excludes payloads, return values, failure text and stack traces.
 - PR #16 masks the raw job ID as well as the name for unrecognized/dynamic job types, because custom identifiers can contain tenant/user data. Only IDs for fixed worker handlers in the service allowlist are returned.
+- PR #18 adds read-only `GET /api/v1/admin/operations/queue/failed` with bounded offset pagination (1–100 rows, offset 0–5,000). It reuses the allowlisted metadata projection and masks both ID and name for unrecognized/dynamic job types; payloads, return values, failure reasons and stack traces are never returned. This is a failed-job listing, **not** a dead-letter queue and does not retry/replay or mutate jobs.
 - Read-only `GET /api/v1/admin/usage/reconciliation` with bounded cursor pagination and decimal/BigInt-safe response serialization.
 - Read-only `GET /api/v1/admin/audit-logs` with actor/action/resource/time filters.
 - Audit response deliberately excludes raw before/after JSON; it exposes only presence flags so secrets or PII embedded in snapshots are not returned by default.
@@ -34,6 +35,7 @@
 
 - PR #13 implementation commit `aae8863b7671b468cd0dfca0b6458e09040b9a17` passed [exact-head GitHub Actions run #43673508410](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43673508410). The subsequent status/legal documentation head `c85109d6c43f56ff16d7c0bdb9c527f51f55bf7f` also passed [exact-head run #43673682455](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43673682455), including frozen lockfile install, OpenAPI validation, API lint/typecheck/build/tests and worker checks.
 
+- PR #18 adds authorization, pagination bounds, sanitized Redis-failure and metadata non-disclosure tests, plus a Redis-backed integration test with a fixed worker job and an unrecognized customer-specific job ID. Exact-head GitHub Actions evidence is pending.
 - Exact-head CI for the BE-8 branch, including API lint, typecheck, build, OpenAPI lint and tests.
 - PostgreSQL integration tests for reconciliation queries and audit access.
 - Cross-role tests: anonymous/user/support denied; admin and super-admin only as permission policy allows.
