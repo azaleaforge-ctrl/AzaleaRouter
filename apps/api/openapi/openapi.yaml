@@ -1458,6 +1458,59 @@ paths:
         "401": { $ref: "#/components/responses/ErrorResponse" }
         "403": { $ref: "#/components/responses/ErrorResponse" }
         "503": { $ref: "#/components/responses/ErrorResponse" }
+  /admin/operations/queue/failed:
+    get:
+      operationId: listAdminFailedQueueJobs
+      summary: List bounded safe metadata for failed BullMQ jobs without exposing payloads or failure details
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, maximum: 5000, default: 0 }
+      responses:
+        "200":
+          description: Offset-paginated failed-job metadata; identifiers for unrecognized job types are masked
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [as_of, data, pagination]
+                properties:
+                  as_of: { type: string, format: date-time }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [id, name, state, attempts_made, attempts_allowed, created_at, processed_at, finished_at]
+                      properties:
+                        id: { type: string, maxLength: 128 }
+                        name: { type: string, maxLength: 100 }
+                        state:
+                          type: string
+                          enum: [completed, failed, delayed, active, waiting, waiting-children, paused, prioritized, unknown]
+                        attempts_made: { type: integer, minimum: 0 }
+                        attempts_allowed: { type: integer, minimum: 1 }
+                        created_at: { type: [string, "null"], format: date-time }
+                        processed_at: { type: [string, "null"], format: date-time }
+                        finished_at: { type: [string, "null"], format: date-time }
+                  pagination:
+                    type: object
+                    additionalProperties: false
+                    required: [offset, limit, total, next_offset]
+                    properties:
+                      offset: { type: integer, minimum: 0 }
+                      limit: { type: integer, minimum: 1, maximum: 100 }
+                      total: { type: integer, minimum: 0 }
+                      next_offset: { type: [integer, "null"], minimum: 0 }
+        "400": { $ref: "#/components/responses/ErrorResponse" }
+        "401": { $ref: "#/components/responses/ErrorResponse" }
+        "403": { $ref: "#/components/responses/ErrorResponse" }
+        "503": { $ref: "#/components/responses/ErrorResponse" }
   /admin/operations/queue/jobs/{jobId}:
     get:
       operationId: getAdminQueueJob
