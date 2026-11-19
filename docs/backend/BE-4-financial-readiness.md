@@ -7,8 +7,8 @@
 
 ## Concurrency hardening follow-up
 
-- Wallet reserve, settle and release operations now retry only Prisma P2034 serialization/deadlock conflicts up to three attempts with short bounded backoff. No external side effects run inside the retry callback.
-- PostgreSQL integration coverage races two 80,000-IDR reservations against a 125,000-IDR wallet, races settlement attempts, and submits two concurrent reservations with the same idempotency key. It asserts only one competing hold is admitted, same-key calls return one reservation, mismatched reuse is rejected, exactly one settlement transaction is posted, debit equals credit, and the final available balance is non-negative.
+- Wallet reserve, settle and release operations now retry only Prisma P2034 serialization/deadlock conflicts up to three attempts with short bounded backoff. Reserve and settle also resolve P2002 idempotency-key races by verifying the committed owner/reference/amount before returning an existing result. No external side effects run inside the retry callback.
+- PostgreSQL integration coverage races two 80,000-IDR reservations against a 125,000-IDR wallet, submits two concurrent reservations with the same idempotency key, and races two settlement calls with the same key. It asserts only one competing hold is admitted, same-key calls return one reservation/settlement, mismatched key reuse is rejected, exactly one settlement transaction is posted, debit equals credit, and the final available balance is non-negative.
 - Exact-head CI evidence is pending.
 
 ## Implemented in this increment
