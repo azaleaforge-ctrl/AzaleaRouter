@@ -170,7 +170,11 @@ async function start(): Promise<void> {
   const contentRouter = database ? createContentRouter(database) : undefined;
   const adminRouter = database ? createAdminRouter({
     database,
-    ...(queueMetrics ? { queueMetrics, queueJobReader: queueMetrics } : {}),
+    ...(queueMetrics ? {
+      queueMetrics,
+      queueJobReader: queueMetrics,
+      queueFailedJobsReader: queueMetrics,
+    } : {}),
   }) : undefined;
 
   const gatewayRouter = database && apiKeyService && usage
