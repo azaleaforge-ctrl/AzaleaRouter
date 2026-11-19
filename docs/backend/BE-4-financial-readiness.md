@@ -5,6 +5,12 @@
 **Base:** current BE-3 catalog branch.  
 **Production state:** no merchant, payment gateway, FX source, or live payment credentials configured.
 
+## Concurrency hardening follow-up
+
+- Wallet reserve, settle and release operations now retry only Prisma P2034 serialization/deadlock conflicts up to three attempts with short bounded backoff. Reserve and settle also resolve P2002 idempotency-key races by verifying the committed owner/reference/amount before returning an existing result. No external side effects run inside the retry callback.
+- PostgreSQL integration coverage races two 80,000-IDR reservations against a 125,000-IDR wallet, submits two concurrent reservations with the same idempotency key, and races two settlement calls with the same key. It asserts only one competing hold is admitted, same-key calls return one reservation/settlement, mismatched key reuse is rejected, exactly one settlement transaction is posted, debit equals credit, and the final available balance is non-negative.
+- PR #19 exact-head CI [#44453745220](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/44453745220) passed on the wallet code/test head; final status/evidence head [#44453928891](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/44453928891) also passed with PostgreSQL, Redis, billing, API, OpenAPI and worker checks. The subsequent documentation/evidence head `688e88d211177dcc7bd707aa7416037de6f5668a` also passed exact-head CI [#44454206685](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/44454206685).
+
 ## Implemented in this increment
 
 - PostgreSQL wallet account linked one-to-one to a credit-normal IDR liability ledger account.
@@ -61,6 +67,6 @@ The local sandbox adapter is for integration tests only. It is not a selected pa
 A green CI run can verify code paths and ephemeral PostgreSQL integrity; it cannot approve a merchant agreement, FX source, legal policy or production money movement.
 
 
-## Exact-head validation note — 14 November 2026
+## Exact-head validation note — 19 November 2026
 
-The earlier CI run [#43543657886](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43543657886) passed on commit `c83ddab7712d677a41709c63232cbd977ce5baf2`. The current BE-4 branch head includes a later workspace lockfile synchronization commit, so that earlier pass is not exact-head evidence for the current branch. Re-run the full workflow on the latest branch head before treating BE-4 as verified. No production merchant, FX, markup, refund/dispute or maker-checker decision is approved by this note.
+The earlier CI run [#43543657886](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/43543657886) is historical and is not current-head evidence. PR #19's wallet implementation/readiness head passed exact-head CI [#44454206685](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/44454206685) on `688e88d211177dcc7bd707aa7416037de6f5668a`; the subsequent status/documentation head passed [#44454470130](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/44454470130) on `d967d6e804c8e65eb0a46f39cb8cdc9cd134738d`. The following BE-8/BE-4 readiness-documentation refreshes are documentation-only and must be checked on the final branch head before this note is treated as fully current. No production merchant, FX, markup, refund/dispute or maker-checker decision is approved by this note.

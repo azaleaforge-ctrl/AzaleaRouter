@@ -35,6 +35,37 @@ function decimalString(value: { toString(): string } | string): string {
   return typeof value === "string" ? value : value.toString();
 }
 
+function isSerializationConflict(error: unknown): boolean {
+  return error !== null
+    && typeof error === "object"
+    && "code" in error
+    && String((error as { code?: unknown }).code) === "P2034";
+}
+
+function isUniqueConstraintConflict(error: unknown): boolean {
+  return error !== null
+    && typeof error === "object"
+    && "code" in error
+    && String((error as { code?: unknown }).code) === "P2002";
+}
+
+/**
+ * Retry only database serialization/deadlock conflicts. The callback contains
+ * database work only, so a rolled-back attempt can be safely executed again.
+ * Idempotency constraints remain the final guard against duplicate writes.
+ */
+async function runSerializableWithRetry<T>(operation: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (!isSerializationConflict(error) || attempt === 2) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 10 * (attempt + 1)));
+    }
+  }
+  throw new Error("SERIALIZABLE_RETRY_EXHAUSTED");
+}
+
 async function lockWalletAccount(tx: WalletTransactionClient, userId: string): Promise<{
   id: string;
   ledgerAccountId: string;
@@ -222,10 +253,35 @@ export class WalletService {
     idempotencyKey: string;
     expiresAt: Date;
   }): Promise<WalletReservationResult> {
-    return this.database.$transaction(
-      (tx) => this.reserveInTransaction(tx, input),
-      { isolationLevel: "Serializable", timeout: 15_000 },
-    );
+    try {
+      return await runSerializableWithRetry(() => this.database.$transaction(
+        (tx) => this.reserveInTransaction(tx, input),
+        { isolationLevel: "Serializable", timeout: 15_000 },
+      ));
+    } catch (error) {
+      // Two requests with the same idempotency key can both observe no row
+      // before one inserts. Resolve the unique-key race by returning the
+      // committed reservation only when its owner and amount match.
+      if (!isUniqueConstraintConflict(error)) throw error;
+      const existing = await this.database.walletReservation.findUnique({
+        where: { idempotencyKey: input.idempotencyKey },
+      });
+      if (!existing) throw error;
+      if (existing.userId !== input.userId
+        || parseIdrAmount(decimalString(existing.amount)) !== parseIdrAmount(input.amount)) {
+        throw new Error("IDEMPOTENCY_KEY_CONFLICT");
+      }
+      return {
+        reservationId: existing.id,
+        idempotencyKey: existing.idempotencyKey,
+        amount: decimalString(existing.amount),
+        ...(existing.settledAmount === null ? {} : { settledAmount: decimalString(existing.settledAmount) }),
+        currency: "IDR",
+        status: existing.status,
+        expiresAt: existing.expiresAt,
+        ledgerTransactionId: existing.ledgerTransactionId,
+      };
+    }
   }
 
   async settleReservationInTransaction(
@@ -368,10 +424,43 @@ export class WalletService {
     idempotencyKey: string;
     actualAmount: string;
   }): Promise<WalletReservationResult> {
-    return this.database.$transaction(
-      (tx) => this.settleReservationInTransaction(tx, input),
-      { isolationLevel: "Serializable", timeout: 15_000 },
-    );
+    try {
+      return await runSerializableWithRetry(() => this.database.$transaction(
+        (tx) => this.settleReservationInTransaction(tx, input),
+        { isolationLevel: "Serializable", timeout: 15_000 },
+      ));
+    } catch (error) {
+      // A concurrent retry using the same settlement key may lose the unique
+      // insert race after the winning transaction commits. Return only the
+      // exact posted settlement attached to this reservation and amount.
+      if (!isUniqueConstraintConflict(error)) throw error;
+      const [reservation, transaction] = await Promise.all([
+        this.database.walletReservation.findUnique({ where: { id: input.reservationId } }),
+        this.database.ledgerTransaction.findUnique({ where: { idempotencyKey: input.idempotencyKey } }),
+      ]);
+      if (!reservation || reservation.userId !== input.userId) throw new Error("RESERVATION_NOT_FOUND");
+      const settledAmount = parseIdrAmount(decimalString(reservation.settledAmount ?? "0"));
+      if (reservation.status !== "settled"
+        || settledAmount !== parseIdrAmount(input.actualAmount)
+        || !transaction
+        || transaction.id !== reservation.ledgerTransactionId
+        || transaction.transactionType !== "usage_settlement"
+        || transaction.referenceType !== "wallet_reservation"
+        || transaction.referenceId !== reservation.id
+        || transaction.status !== "posted") {
+        throw new Error("SETTLEMENT_IDEMPOTENCY_CONFLICT");
+      }
+      return {
+        reservationId: reservation.id,
+        idempotencyKey: reservation.idempotencyKey,
+        amount: decimalString(reservation.amount),
+        settledAmount: decimalString(reservation.settledAmount ?? "0"),
+        currency: "IDR",
+        status: reservation.status,
+        expiresAt: reservation.expiresAt,
+        ledgerTransactionId: transaction.id,
+      };
+    }
   }
 
   async releaseReservationInTransaction(
@@ -411,10 +500,10 @@ export class WalletService {
   }
 
   async releaseReservation(userId: string, reservationId: string): Promise<WalletReservationResult> {
-    return this.database.$transaction(
+    return runSerializableWithRetry(() => this.database.$transaction(
       (tx) => this.releaseReservationInTransaction(tx, userId, reservationId),
       { isolationLevel: "Serializable", timeout: 15_000 },
-    );
+    ));
   }
 
 }
