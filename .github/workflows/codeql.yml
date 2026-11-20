@@ -69,5 +69,7 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
           if [[ -n "${alerts}" ]]; then
+            echo "CodeQL findings (rule, level, file, line):"
+            echo "${alerts}"
             echo "::warning::CodeQL findings exist for ${CODEQL_REF}; review the step summary before any merge."
           fi
