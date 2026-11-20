@@ -80,8 +80,8 @@ All dependency comparisons below were re-run against live branch refs after reco
 | PR #18 → BE-4 wallet concurrency and idempotency hardening (PR #19) | 21 | 0 | Clean ancestry; includes the latest readiness/status documentation refreshes; no rebase or force-push |
 | PR #19 → consolidated dependency audit + Effect remediation (PR #21) | 19 | 0 | Clean ancestry; includes PR #20's audit/readiness/decision/status changes and PR #21's patched Effect lockfile; PR #20 closed as superseded, no force-push |
 | PR #23 → CodeQL alert inventory follow-up (PR #24) | 4 | 0 | Clean ancestry; PR #24 is stacked on the current PR #23 head; no force-push |
-| PR #21 → moderate dependency audit remediation (PR #22) | 8 | 0 | Clean ancestry; three documentation/status refresh commits follow the implementation/test head; no force-push |
-| PR #22 → CodeQL/Gitleaks security follow-up (PR #23) | 12 | 0 | Clean ancestry; PR #23 is stacked on the current PR #22 head; no force-push |
+| PR #21 → moderate dependency audit remediation (PR #22) | 9 | 0 | Clean ancestry; PR #21 now targets PR #19 directly; PR #22 remains based on PR #21 head |
+| PR #22 → CodeQL/Gitleaks security follow-up (PR #23) | 14 | 0 | Clean ancestry; PR #23 is stacked on the current PR #22 head; no force-push |
 
 The branch history was reconciled using non-force merge commits that retain the previous feature head as a parent and preserve the reviewed feature tree. PR #13 is a five-commit BE-8 follow-up based on PR #12's current head; implementation, documentation and status-refresh commits are retained, and the latest exact-head CI passed. No PR was merged. PR #7 was also retargeted from BE-2 to BE-3 so its review diff is stage-scoped. All open PRs currently report mergeable; this is not permission to merge before the global BE-0..BE-9 gate.
 
