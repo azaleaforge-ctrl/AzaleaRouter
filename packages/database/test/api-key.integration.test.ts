@@ -24,11 +24,12 @@ test("database enforces unique non-plaintext API key storage", {
     });
     const opaqueToken = `AZL-${randomUUID().replaceAll("-", "")}`;
     const hash = createHash("sha256").update(opaqueToken).digest("hex");
+    const firstKeyPrefix = `AZL-${suffix.replaceAll("-", "").slice(0, 8)}`;
     const key = await database.apiKey.create({
       data: {
         userId: user.id,
         name: "Database fixture key",
-        keyPrefix: "AZL-12345678",
+        keyPrefix: firstKeyPrefix,
         tokenHash: hash,
         pepperVersion: "test-v1",
         scopes: ["chat:completions"],
@@ -40,12 +41,12 @@ test("database enforces unique non-plaintext API key storage", {
     });
     assert.notEqual(key.tokenHash, opaqueToken);
     assert.match(key.tokenHash, /^[0-9a-f]{64}$/);
-    assert.equal(key.keyPrefix, "AZL-12345678");
+    assert.equal(key.keyPrefix, firstKeyPrefix);
     await assert.rejects(database.apiKey.create({
       data: {
         userId: user.id,
         name: "Duplicate hash",
-        keyPrefix: "AZL-abcdefgh",
+        keyPrefix: `AZL-${randomUUID().replaceAll("-", "").slice(0, 8)}`,
         tokenHash: hash,
         pepperVersion: "test-v1",
         scopes: ["chat:completions"],

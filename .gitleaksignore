@@ -1,0 +1,4 @@
+# Exact false positives from the historical integration-test fixture below.
+# These were public synthetic keyPrefix placeholders, not credentials; opaque tokens are generated at runtime.
+9318b50e185dfcbbe9192abff909654e34e34e26:packages/database/test/api-key.integration.test.ts:generic-api-key:31
+9318b50e185dfcbbe9192abff909654e34e34e26:packages/database/test/api-key.integration.test.ts:generic-api-key:43
