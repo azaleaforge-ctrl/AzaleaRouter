@@ -71,7 +71,16 @@ jobs:
               echo
               echo "| Alert | Rule | Severity | Location |"
               echo "|---:|---|---|---|"
-              while IFS=$'\\t' read -r number rule severity path line; do
+              while IFS= read -r number rule severity path line; do
+                printf '| #%s | \`%s\` | \`%s\` | \`%s:%s\` |\n' "$number" "$rule" "$severity" "$path" "$line"
+              done <<< "${alerts}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ -n "${alerts}" ]]; then
+            echo "::warning::Open CodeQL alerts exist for ${CODEQL_REF}; review the step summary before any merge."
+          fi
+\t' read -r number rule severity path line; do
                 printf '| #%s | \`%s\` | \`%s\` | \`%s:%s\` |\\n' "$number" "$rule" "$severity" "$path" "$line"
               done <<< "${alerts}"
             fi
