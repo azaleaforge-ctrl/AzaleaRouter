@@ -21,10 +21,12 @@ A closed beta may not be approved until every applicable gate has an owner, evid
 | Files (D-06/D-16) | Production private storage/region/encryption, scanner, MIME/quota tests, retention/deletion, clean-file E2E and incident response | OPEN; only local adapter and fail-closed scanner boundary exist |
 | Reliability (D-14) | Production DB and Redis topology, backup/PITR, measured RPO/RTO, restore drill, capacity/load tests, rollback evidence | OPEN |
 | Operations (D-18) | Named incident commander, on-call/escalation contacts, support hours, severity/SLA, status-page and customer communication procedures | OPEN |
-| Application security | Dependency/SAST/secrets scans, threat model, IDOR/CSRF/rate-limit tests, penetration review, admin/audit review, exact-head green CI | INCOMPLETE |
+| Application security | Dependency/SAST/secrets scans, threat model, IDOR/CSRF/rate-limit tests, penetration review, admin/audit review, exact-head green CI | Dependency audit is wired into CI and will fail on high/critical advisories; exact-head result pending. SAST/secrets scanning, threat model, independent penetration review and full admin/audit review remain INCOMPLETE |
 | Stage completion | BE-0..BE-8 acceptance evidence, resolved reviews, clean dependency chain and migration audit | INCOMPLETE |
 
 No owner approval, legal permission, merchant onboarding, production credential, alert threshold or RPO/RTO is inferred by this checklist.
+
+The CI workflow now runs `pnpm audit --audit-level=high` after the frozen install. This scans the workspace dependency graph and fails on high/critical advisories; it is a dependency vulnerability gate, not a substitute for SAST, secret scanning, threat modeling, penetration testing or legal/security approval.
 
 The BE-8 follow-up [PR #13](https://github.com/azaleaforge-ctrl/AzaleaRouter/pull/13) adds a read-only queue-count endpoint. It does not implement a dead-letter queue, failed-job inspection/retry, monitoring exporter or paging/alert delivery.
 
