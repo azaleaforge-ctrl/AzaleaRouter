@@ -169,6 +169,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  effect: 3.22.1
+
 importers:
 
   .:
