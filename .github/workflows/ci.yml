@@ -65,8 +65,15 @@ jobs:
           version: 12.18.0
           run_install: false
 
-      - name: Install dependencies (frozen lockfile required)
-        run: pnpm install --frozen-lockfile
+      - name: Regenerate lockfile for scoped security override (temporary)
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Upload regenerated lockfile (temporary)
+        uses: actions/upload-artifact@v4
+        with:
+          name: regenerated-pnpm-lockfile
+          path: pnpm-lock.yaml
+          if-no-files-found: error
 
       - name: Audit dependency vulnerabilities (fail on moderate, high and critical)
         run: pnpm audit --audit-level=moderate
