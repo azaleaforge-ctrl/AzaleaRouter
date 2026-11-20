@@ -36,7 +36,6 @@ jobs:
           build-mode: none
 
       - name: Perform CodeQL Analysis
-        id: analyze
         uses: github/codeql-action/analyze@v4
         with:
           category: /language:javascript-typescript
@@ -49,43 +48,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          alerts="$(gh api --paginate \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "repos/${GITHUB_REPOSITORY}/code-scanning/alerts" \
-            -f state=open \
-            -f ref="${CODEQL_REF}" \
-            -F per_page=100 \
-            --jq '.[] | [.number, .rule.id, (.rule.security_severity_level // .rule.severity // "unknown"), (.most_recent_instance.location.path // "unknown"), (.most_recent_instance.location.start_line // 0)] | @tsv')"
-
+          alerts="$(gh api --paginate -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" "repos/${GITHUB_REPOSITORY}/code-scanning/alerts" -f state=open -f ref="${CODEQL_REF}" -F per_page=100 --jq '.[] | "- Alert #\(.number): \(.rule.id) — \(.rule.security_severity_level // .rule.severity // "unknown") — \(.most_recent_instance.location.path // "unknown"): \(.most_recent_instance.location.start_line // 0)"')"
           {
             echo "## CodeQL alert inventory"
             echo
-            echo "Analyzed ref: \`${CODEQL_REF}\`"
+            echo "Analyzed ref: ${CODEQL_REF}"
             echo
             if [[ -z "${alerts}" ]]; then
               echo "No open CodeQL alerts were returned for this ref."
             else
               echo "Open alerts require manual triage. This report does not dismiss, suppress, or reclassify findings."
               echo
-              echo "| Alert | Rule | Severity | Location |"
-              echo "|---:|---|---|---|"
-              while IFS= read -r number rule severity path line; do
-                printf '| #%s | \`%s\` | \`%s\` | \`%s:%s\` |\n' "$number" "$rule" "$severity" "$path" "$line"
-              done <<< "${alerts}"
+              echo "${alerts}"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
-
-          if [[ -n "${alerts}" ]]; then
-            echo "::warning::Open CodeQL alerts exist for ${CODEQL_REF}; review the step summary before any merge."
-          fi
-\t' read -r number rule severity path line; do
-                printf '| #%s | \`%s\` | \`%s\` | \`%s:%s\` |\\n' "$number" "$rule" "$severity" "$path" "$line"
-              done <<< "${alerts}"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
           if [[ -n "${alerts}" ]]; then
             echo "::warning::Open CodeQL alerts exist for ${CODEQL_REF}; review the step summary before any merge."
           fi
