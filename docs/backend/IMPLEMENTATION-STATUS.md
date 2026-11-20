@@ -51,7 +51,6 @@ All open PRs remain Draft. No PR has been merged. PR #3 and #4 are closed, unmer
 | [#19](https://github.com/azaleaforge-ctrl/AzaleaRouter/pull/19) | BE-4 wallet concurrency and idempotency hardening | `test/wallet-concurrent-reservation-settlement-be4` / final head in live PR metadata (code/test `77694f2317fb8fe7703441f0a6c820cddbe0ee17`, BE-8 readiness `340b458761c8fd8e664b283e7c3e6444bf0afad6`, BE-4 readiness `cf7cdbacccbe4fe417cbbf7aaecd37ccc0e313f1`, decision log `189814cd45e196cb9ae873c4a531942fcc177649`, prior status `d967d6e804c8e65eb0a46f39cb8cdc9cd134738d`) | PR #18 / `7558bf5c6244291841c353105f27f51e02c65080` | Open / Draft; exact-head CI [#44454773614](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/44454773614) passed on final readiness/status head `57d6a75` |
 | [#20](https://github.com/azaleaforge-ctrl/AzaleaRouter/pull/20) | BE-0/BE-9 dependency security audit follow-up | `ci/dependency-audit-be0` / see live PR head metadata | PR #19 / `57d6a75bf82b30e8b959d9e884c2fc3ca2368911` | Open / Draft; first audit run found high `effect@3.20.0` advisory; remediation is PR #21 |
 | [#21](https://github.com/azaleaforge-ctrl/AzaleaRouter/pull/21) | BE-0/BE-1 transitive Effect advisory remediation | `fix/effect-redos-advisory-be0` / `5797a18c581db4ed5cb58679cdb8a9f3e9fada62` | PR #20 / `5d14c13c7ca26d7ff7f5bb8dd1aeec850c92b85b` | Open / Draft; patched `effect@3.22.1`; current exact-head CI [#44672553690](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/44672553690) passed |
-
 | [#22](https://github.com/azaleaforge-ctrl/AzaleaRouter/pull/22) | BE-0/BE-1 moderate dependency audit remediation | `ci/audit-moderate-be0` / `c95bdaa2aa018749e2998dc6b5e8b63f9549be65` | PR #21 / `5797a18c581db4ed5cb58679cdb8a9f3e9fada62` | Open / Draft; patched `minimatch@10.2.6` → `11.0.9`; exact-head frozen-install CI [#44673724650](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/44673724650) passed moderate+ audit and full workspace checks |
 
 ### Dependency verification
@@ -63,7 +62,6 @@ All dependency comparisons below were re-run against live branch refs after reco
 | `main` → Backend PRD v0.4 (PR #1) | 1 | 0 | Clean base ancestry |
 | PR #1 → BE-1 foundation (PR #2) | 113 | 0 | Clean ancestry |
 | BE-1 → current BE-2 (PR #5) | 66 | 0 | Clean ancestry; superseded PR #3/#4 are closed |
-| BE-2 → BE-3 | 43 | 0 | Clean ancestry |
 | BE-2 → BE-3 | 43 | 0 | Clean ancestry |
 | BE-3 → BE-4 | 70 | 0 | Clean ancestry |
 | BE-4 → BE-5 | 49 | 0 | Clean ancestry |
