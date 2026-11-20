@@ -39,3 +39,37 @@ jobs:
         uses: github/codeql-action/analyze@v4
         with:
           category: /language:javascript-typescript
+          output: codeql-results
+
+      - name: Summarize CodeQL SARIF findings
+        if: success()
+        env:
+          CODEQL_REF: ${{ github.ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t sarif_files < <(find codeql-results -type f -name '*.sarif' -print)
+          if [[ ${#sarif_files[@]} -eq 0 ]]; then
+            echo "::error::CodeQL completed without a local SARIF output file; alert inventory is unavailable."
+            exit 1
+          fi
+          alerts="$(jq -r '.runs[]? | .results[]? | "- \(.ruleId // "unknown") (\(.level // "unknown")) — \(.locations[0].physicalLocation.artifactLocation.uri // "unknown"): \(.locations[0].physicalLocation.region.startLine // 0)"' "${sarif_files[@]}")"
+          {
+            echo "## CodeQL SARIF inventory"
+            echo
+            echo "Analyzed ref: ${CODEQL_REF}"
+            echo "SARIF files: ${#sarif_files[@]}"
+            echo
+            if [[ -z "${alerts}" ]]; then
+              echo "No CodeQL findings were present in the generated SARIF results."
+            else
+              echo "Findings require manual triage. This report does not dismiss, suppress, or reclassify results."
+              echo
+              echo "${alerts}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ -n "${alerts}" ]]; then
+            echo "CodeQL findings (rule, level, file, line):"
+            echo "${alerts}"
+            echo "::warning::CodeQL findings exist for ${CODEQL_REF}; review the step summary before any merge."
+          fi
