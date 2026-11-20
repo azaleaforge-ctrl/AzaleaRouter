@@ -2,9 +2,10 @@ packages:
   - "apps/*"
   - "packages/*"
 
-# Keep the transitive Effect dependency on the patched version for CVE-2026-121707.
+# Keep transitive dependencies on patched versions for known advisories.
 overrides:
   effect: 3.22.1
+  "minimatch@10.2.6": 11.0.9
 
 # pnpm 12 requires explicit approval for dependency install scripts.
 # Approve only scripts needed by the build/test toolchain and Prisma 7 client generation.

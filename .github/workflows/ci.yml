@@ -68,8 +68,8 @@ jobs:
       - name: Install dependencies (frozen lockfile required)
         run: pnpm install --frozen-lockfile
 
-      - name: Audit dependency vulnerabilities (fail on high and critical)
-        run: pnpm audit --audit-level=high
+      - name: Audit dependency vulnerabilities (fail on moderate, high and critical)
+        run: pnpm audit --audit-level=moderate
 
       - name: Lint all workspace packages
         run: pnpm lint
