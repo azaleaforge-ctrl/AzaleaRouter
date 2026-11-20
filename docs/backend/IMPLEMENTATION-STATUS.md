@@ -72,7 +72,7 @@ All dependency comparisons below were re-run against live branch refs after reco
 | PR #16 → BE-7 transaction-safe attachment linking follow-up (PR #17) | 7 | 0 | Clean ancestry; PR #17 is stacked on PR #16 and locks attachment rows within the message transaction |
 | PR #17 → BE-8 failed-job metadata listing (PR #18) | 8 | 0 | Clean ancestry; PR #18 is stacked on the final PR #17 head |
 | PR #18 → BE-4 wallet concurrency and idempotency hardening (PR #19) | 21 | 0 | Clean ancestry; includes the latest readiness/status documentation refreshes; no rebase or force-push |
-| PR #19 → dependency security audit follow-up (PR #20) | 2 | 0 | Clean ancestry; PR #20 adds a CI dependency audit and BE-9 security-gate documentation |
+| PR #19 → dependency security audit follow-up (PR #20) | 5 | 0 | Clean ancestry; four CI/legal/readiness commits plus this status refresh; no force-push |
 
 The branch history was reconciled using non-force merge commits that retain the previous feature head as a parent and preserve the reviewed feature tree. PR #13 is a five-commit BE-8 follow-up based on PR #12's current head; implementation, documentation and status-refresh commits are retained, and the latest exact-head CI passed. No PR was merged. PR #7 was also retargeted from BE-2 to BE-3 so its review diff is stage-scoped. All open PRs currently report mergeable; this is not permission to merge before the global BE-0..BE-9 gate.
 
@@ -102,7 +102,7 @@ An initial attempt to enforce frozen install omitted the catalog/billing build s
 
 ## Reviews, blockers and next actions
 
-- Open PRs #1, #2 and #5–#20 remain Draft. PR #13 is the BE-8 operations follow-up, based on BE-9 to preserve existing dependency ancestry. On 20 Nov 2026, reviews, inline review threads and conversation comments were rechecked for PRs #1, #2 and #5–#19; none were returned. PR #20 was opened as Draft and is awaiting its review/comment check. Reviewer approval is therefore not evidenced.
+- Open PRs #1, #2 and #5–#20 remain Draft. PR #13 is the BE-8 operations follow-up, based on BE-9 to preserve existing dependency ancestry. On 20 Nov 2026, reviews, inline review threads and conversation comments were rechecked for PRs #1, #2 and #5–#19; none were returned. PR #20 was opened as Draft; its review submissions, inline threads and conversation comments were checked and none were returned. Reviewer approval is therefore not evidenced.
 - No merge was performed. PR #3 and #4 remain closed and unmerged.
 - Frozen-lockfile installation is now mandatory for every PR and push. Keep the dependency build order (database → catalog → billing → API → worker) in place and investigate any future exact-head CI regression.
 - Complete BE-6 SSE reconnect/load and settlement reconciliation tests; complete BE-7 assistant-generation/usage integration and production-grade storage/scanning decision boundary.
