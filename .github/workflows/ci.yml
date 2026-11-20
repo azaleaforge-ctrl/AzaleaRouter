@@ -65,29 +65,11 @@ jobs:
           version: 12.18.0
           run_install: false
 
-      - name: Regenerate Effect advisory lockfile candidate (temporary)
-        if: github.head_ref == 'fix/effect-redos-advisory-be0'
-        run: pnpm install --no-frozen-lockfile --lockfile-only
-
       - name: Install dependencies (frozen lockfile required)
         run: pnpm install --frozen-lockfile
 
       - name: Audit dependency vulnerabilities (fail on high and critical)
         run: pnpm audit --audit-level=high
-
-      - name: Capture generated lockfile patch (temporary)
-        if: github.head_ref == 'fix/effect-redos-advisory-be0'
-        run: git diff -- pnpm-lock.yaml > /tmp/effect-advisory-lockfile.patch
-
-      - name: Upload Effect advisory lockfile candidate (temporary)
-        if: always() && github.head_ref == 'fix/effect-redos-advisory-be0'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: effect-advisory-lockfile-candidate
-          path: |
-            pnpm-lock.yaml
-            /tmp/effect-advisory-lockfile.patch
-          if-no-files-found: error
 
       - name: Lint all workspace packages
         run: pnpm lint
