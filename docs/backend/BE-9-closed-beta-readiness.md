@@ -6,7 +6,7 @@
 
 ## 1. Go/no-go gates
 
-### Upstream terms recheck — 15 November 2026
+### Upstream terms recheck — 20 November 2026
 
 The public [OpenRouter Terms](https://openrouter.ai/terms), last updated 31 August 2026, still prohibit resale of Model API access or developing a competing service in §7(4). The official [Enterprise Access Agreement template](https://openrouter.ai/terms-of-service-enterprise), last updated 22 June 2026, §2.1 permits an enterprise customer to make the Service available to its End Customers, but the licence is non-transferable and non-sublicensable; §2.3.7 prohibits renting/reselling or otherwise allowing third-party access. The template requires a mutually executed Order Form and incorporates a DPA. No executed Order Form, DPA or AzaleaRouter-specific written approval is recorded. This is not sufficient evidence to enable AzaleaRouter's proxy/gateway, downstream AZL keys or prepaid customer billing. D-05 remains **BLOCKED** pending written scope approval and qualified legal review.
 
@@ -21,12 +21,12 @@ A closed beta may not be approved until every applicable gate has an owner, evid
 | Files (D-06/D-16) | Production private storage/region/encryption, scanner, MIME/quota tests, retention/deletion, clean-file E2E and incident response | OPEN; only local adapter and fail-closed scanner boundary exist |
 | Reliability (D-14) | Production DB and Redis topology, backup/PITR, measured RPO/RTO, restore drill, capacity/load tests, rollback evidence | OPEN |
 | Operations (D-18) | Named incident commander, on-call/escalation contacts, support hours, severity/SLA, status-page and customer communication procedures | OPEN |
-| Application security | Dependency/SAST/secrets scans, threat model, IDOR/CSRF/rate-limit tests, penetration review, admin/audit review, exact-head green CI | Dependency audit is wired into CI and will fail on high/critical advisories; exact-head result pending. SAST/secrets scanning, threat model, independent penetration review and full admin/audit review remain INCOMPLETE |
+| Application security | Dependency/SAST/secrets scans, threat model, IDOR/CSRF/rate-limit tests, penetration review, admin/audit review, exact-head green CI | PR #21 exact-head CI [#44671836752](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/44671836752) passed frozen install, high/critical dependency audit, lint, typecheck, build and tests after pinning patched `effect@3.22.1`. The earlier audit also reported one moderate advisory; the high/critical threshold does not classify it, so it remains to be identified/triaged. SAST/secrets scanning, threat model, independent penetration review and full admin/audit review remain INCOMPLETE |
 | Stage completion | BE-0..BE-8 acceptance evidence, resolved reviews, clean dependency chain and migration audit | INCOMPLETE |
 
 No owner approval, legal permission, merchant onboarding, production credential, alert threshold or RPO/RTO is inferred by this checklist.
 
-The CI workflow now runs `pnpm audit --audit-level=high` after the frozen install. This scans the workspace dependency graph and fails on high/critical advisories; it is a dependency vulnerability gate, not a substitute for SAST, secret scanning, threat modeling, penetration testing or legal/security approval.
+The CI workflow runs `pnpm audit --audit-level=high` after the frozen install. PR #20's first run exposed high GHSA-7589-6fvf-x4pw in `effect@3.20.0`; PR #21 pins the patched `3.22.1` version in the workspace and both lockfile documents. Final exact-head run #44671836752 passed. The previously reported moderate advisory remains untriaged; run an audit at moderate threshold and assess applicability. This dependency gate is not a substitute for SAST, secret scanning, threat modeling, penetration testing or legal/security approval.
 
 The BE-8 follow-up [PR #13](https://github.com/azaleaforge-ctrl/AzaleaRouter/pull/13) adds a read-only queue-count endpoint. It does not implement a dead-letter queue, failed-job inspection/retry, monitoring exporter or paging/alert delivery.
 
