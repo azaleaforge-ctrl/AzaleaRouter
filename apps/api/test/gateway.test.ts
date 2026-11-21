@@ -49,9 +49,14 @@ function options(overrides: Partial<Parameters<typeof createGatewayRouter>[0]> =
       spendLimitIdr: null,
     }),
   } as never;
+  const usage = {
+    preflight: async () => {},
+    begin: async () => { throw new Error("Gateway usage begin was not configured in this test."); },
+  } as never;
   return {
     database,
     apiKeys,
+    usage,
     enabled: false,
     upstreamApproved: false,
     settlementReady: false,
@@ -111,6 +116,102 @@ test("gateway rejects requests without AZL authentication before any provider lo
     });
     assert.equal(response.status, 401);
     assert.equal(modelLookups, 0);
+  } finally {
+    await stop(server);
+  }
+});
+
+
+test("gateway rejects rate-limited API keys before catalog lookup", async () => {
+  const order: string[] = [];
+  const opts = options({
+    enabled: true,
+    upstreamApproved: true,
+    settlementReady: true,
+    provider: {
+      complete: async () => new Response("{}"),
+      stream: async () => new Response("data: [DONE]\\n\\n"),
+    },
+    usage: {
+      preflight: async () => {
+        order.push("preflight");
+        throw new Error("API_KEY_RATE_LIMITED");
+      },
+      begin: async () => { throw new Error("Usage reservation must not run after a rejected preflight."); },
+    } as never,
+  });
+  (opts.database as unknown as { catalogModel: { findFirst: () => Promise<unknown> } }).catalogModel.findFirst = async () => {
+    order.push("catalog");
+    return null;
+  };
+  const { server, url } = await startGateway(opts);
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer AZL-${"a".repeat(43)}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+    assert.equal(response.status, 429);
+    const body = await response.json() as { error: { code: string } };
+    assert.equal(body.error.code, "API_KEY_RATE_LIMITED");
+    assert.deepEqual(order, ["preflight"]);
+  } finally {
+    await stop(server);
+  }
+});
+
+test("gateway consumes the preflight RPM window once and passes the prechecked marker to reservation", async () => {
+  const order: string[] = [];
+  const opts = options({
+    enabled: true,
+    upstreamApproved: true,
+    settlementReady: true,
+    provider: {
+      complete: async () => new Response("{}"),
+      stream: async () => new Response("data: [DONE]\\n\\n"),
+    },
+    usage: {
+      preflight: async () => { order.push("preflight"); },
+      begin: async (input: { rateLimitPrechecked?: boolean }) => {
+        order.push("begin");
+        assert.equal(input.rateLimitPrechecked, true);
+        throw new Error("PRICING_NOT_READY");
+      },
+    } as never,
+  });
+  (opts.database as unknown as { catalogModel: { findFirst: () => Promise<unknown> } }).catalogModel.findFirst = async () => {
+    order.push("catalog");
+    return {
+      id: "model-1",
+      canonicalSlug: "acme/canonical-chat",
+      sourceModelId: "acme/source-id",
+      maxCompletionTokens: 128,
+      endpoints: [{
+        id: "endpoint-1",
+        modelVariant: "acme/source-id",
+        maxCompletionTokens: 128,
+        maxPromptTokens: 1000,
+        provider: { slug: "provider-a" },
+      }],
+    };
+  };
+  const { server, url } = await startGateway(opts);
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer AZL-${"a".repeat(43)}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+    assert.equal(response.status, 503);
+    const body = await response.json() as { error: { code: string } };
+    assert.equal(body.error.code, "PRICING_NOT_READY");
+    assert.deepEqual(order, ["preflight", "catalog", "begin"]);
   } finally {
     await stop(server);
   }
