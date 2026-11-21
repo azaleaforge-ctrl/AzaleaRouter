@@ -35,13 +35,13 @@ test("logout applies the persistent rate limiter before revoking the session", a
   app.use(express.json());
   app.use("/api/v1", createSessionResolver({
     resolvePrincipal: async () => ({
-        userId: randomUUID(),
-        email: "user@example.test",
-        role: "user",
-        status: "active",
-        sessionId: randomUUID(),
-        csrfTokenHash: createHash("sha256").update(csrfToken).digest("hex"),
-      }),
+      userId: randomUUID(),
+      email: "user@example.test",
+      role: "user",
+      status: "active",
+      sessionId: randomUUID(),
+      csrfTokenHash: createHash("sha256").update(csrfToken).digest("hex"),
+    }),
   } as never));
   app.use("/api/v1", router);
   app.use(errorHandler);
