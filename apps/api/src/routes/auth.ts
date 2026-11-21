@@ -312,6 +312,7 @@ export function createAuthRouter(dependencies: AuthRouterDependencies): Router {
   });
 
   router.post("/auth/logout", requireAuthenticated(), csrfGuard, async (req, res) => {
+    await dependencies.rateLimiter.consume("logout", `${req.auth!.userId}:${clientAddress(req)}`);
     await dependencies.sessions.revokeCurrent(req, res);
     res.status(204).end();
   });
