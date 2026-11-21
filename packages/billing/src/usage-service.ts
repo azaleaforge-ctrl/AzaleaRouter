@@ -22,6 +22,8 @@ export interface UsageStartInput {
   providerSlug: string;
   estimatedPromptTokens: number;
   maxCompletionTokens: number;
+  /** True only when the gateway has already consumed the persistent RPM window before catalog lookup. */
+  rateLimitPrechecked?: boolean;
 }
 
 export interface UsageStartResult {
@@ -183,6 +185,45 @@ export class UsageService {
     });
   }
 
+  async preflight(input: { userId: string; apiKeyId: string }): Promise<void> {
+    const now = new Date(this.now());
+    const rateWindowStart = new Date(Math.floor(now.getTime() / USAGE_RATE_WINDOW_MS) * USAGE_RATE_WINDOW_MS);
+    const rateWindowExpires = new Date(rateWindowStart.getTime() + USAGE_RATE_WINDOW_MS * 2);
+
+    await this.database.$transaction(async (tx) => {
+      // Serialize preflight attempts for one key so its persisted RPM counter is authoritative.
+      await tx.$queryRaw`SELECT "id" FROM "api_keys" WHERE "id" = ${input.apiKeyId}::uuid AND "user_id" = ${input.userId}::uuid FOR UPDATE`;
+      const apiKey = await tx.apiKey.findFirst({
+        where: { id: input.apiKeyId, userId: input.userId, status: "active" },
+      });
+      if (!apiKey || (apiKey.expiresAt && apiKey.expiresAt.getTime() <= now.getTime())) {
+        throw new Error("API_KEY_INVALID");
+      }
+
+      const rateWindow = await tx.apiKeyRateWindow.upsert({
+        where: { apiKeyId_windowStart: { apiKeyId: apiKey.id, windowStart: rateWindowStart } },
+        create: {
+          apiKeyId: apiKey.id,
+          windowStart: rateWindowStart,
+          requestCount: 1,
+          expiresAt: rateWindowExpires,
+        },
+        update: { requestCount: { increment: 1 }, expiresAt: rateWindowExpires },
+      });
+      if (rateWindow.requestCount > apiKey.rateLimitRpm) throw new Error("API_KEY_RATE_LIMITED");
+
+      // Early rejection only; begin() repeats this check in the reservation transaction.
+      const activeLeases = await tx.apiKeyConcurrencyLease.count({
+        where: {
+          apiKeyId: apiKey.id,
+          releasedAt: null,
+          expiresAt: { gt: now },
+        },
+      });
+      if (activeLeases >= apiKey.concurrencyLimit) throw new Error("API_KEY_CONCURRENCY_LIMIT");
+    }, { isolationLevel: "Serializable", timeout: 15_000 });
+  }
+
   async begin(input: UsageStartInput): Promise<UsageStartResult> {
     if (!input.requestId || input.requestId.length > 100) throw new RangeError("Invalid request ID.");
     if (!input.idempotencyKey || input.idempotencyKey.length < 8 || input.idempotencyKey.length > 128) {
@@ -211,17 +252,19 @@ export class UsageService {
         throw new Error("API_KEY_INVALID");
       }
 
-      const rateWindow = await tx.apiKeyRateWindow.upsert({
-        where: { apiKeyId_windowStart: { apiKeyId: apiKey.id, windowStart: rateWindowStart } },
-        create: {
-          apiKeyId: apiKey.id,
-          windowStart: rateWindowStart,
-          requestCount: 1,
-          expiresAt: rateWindowExpires,
-        },
-        update: { requestCount: { increment: 1 }, expiresAt: rateWindowExpires },
-      });
-      if (rateWindow.requestCount > apiKey.rateLimitRpm) throw new Error("API_KEY_RATE_LIMITED");
+      if (!input.rateLimitPrechecked) {
+        const rateWindow = await tx.apiKeyRateWindow.upsert({
+          where: { apiKeyId_windowStart: { apiKeyId: apiKey.id, windowStart: rateWindowStart } },
+          create: {
+            apiKeyId: apiKey.id,
+            windowStart: rateWindowStart,
+            requestCount: 1,
+            expiresAt: rateWindowExpires,
+          },
+          update: { requestCount: { increment: 1 }, expiresAt: rateWindowExpires },
+        });
+        if (rateWindow.requestCount > apiKey.rateLimitRpm) throw new Error("API_KEY_RATE_LIMITED");
+      }
 
       const activeLeases = await tx.apiKeyConcurrencyLease.count({
         where: {
