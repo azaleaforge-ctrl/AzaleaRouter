@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import test from "node:test";
-import { createApp } from "../src/app.js";
+import express from "express";
+import { createSessionResolver } from "../src/middleware/session-resolver.js";
+import { requestIdMiddleware } from "../src/middleware/request-id.js";
+import { errorHandler } from "../src/middleware/error-handler.js";
 import { createAuthRouter } from "../src/routes/auth.js";
 
 async function stop(server: Server): Promise<void> {
@@ -27,10 +30,11 @@ test("logout applies the persistent rate limiter before revoking the session", a
     privacyVersion: "privacy-test-v1",
     allowedOrigins: ["https://web.example.test"],
   });
-  const server = createServer(createApp({
-    authRouter: router,
-    sessionVerifier: {
-      resolvePrincipal: async () => ({
+  const app = express();
+  app.use(requestIdMiddleware);
+  app.use(express.json());
+  app.use("/api/v1", createSessionResolver({
+    resolvePrincipal: async () => ({
         userId: randomUUID(),
         email: "user@example.test",
         role: "user",
@@ -38,8 +42,10 @@ test("logout applies the persistent rate limiter before revoking the session", a
         sessionId: randomUUID(),
         csrfTokenHash: createHash("sha256").update(csrfToken).digest("hex"),
       }),
-    } as never,
-  }));
+  } as never));
+  app.use("/api/v1", router);
+  app.use(errorHandler);
+  const server = createServer(app);
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", resolve);
