@@ -40,12 +40,16 @@ test("gateway preflight persists per-key RPM and rejects over-limit requests bef
     const now = Date.now();
     const usage = new UsageService(database, new WalletService(database), { now: () => now });
 
-    await usage.preflight({ userId: user.id, apiKeyId: apiKey.id });
-    await usage.preflight({ userId: user.id, apiKeyId: apiKey.id });
-    await assert.rejects(
-      usage.preflight({ userId: user.id, apiKeyId: apiKey.id }),
-      /API_KEY_RATE_LIMITED/,
+    const attempts = await Promise.allSettled(
+      Array.from({ length: 5 }, () => usage.preflight({ userId: user.id, apiKeyId: apiKey.id })),
     );
+    const accepted = attempts.filter((attempt) => attempt.status === "fulfilled");
+    const rejected = attempts.filter((attempt) => attempt.status === "rejected");
+    assert.equal(accepted.length, 2);
+    assert.equal(rejected.length, 3);
+    for (const attempt of rejected) {
+      assert.match(String((attempt as PromiseRejectedResult).reason), /API_KEY_RATE_LIMITED/);
+    }
 
     const windows = await database.apiKeyRateWindow.findMany({ where: { apiKeyId: apiKey.id } });
     assert.equal(windows.length, 1);
