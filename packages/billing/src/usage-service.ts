@@ -221,7 +221,7 @@ export class UsageService {
         },
       });
       if (activeLeases >= apiKey.concurrencyLimit) throw new Error("API_KEY_CONCURRENCY_LIMIT");
-    }, { isolationLevel: "Serializable", timeout: 15_000 });
+    }, { isolationLevel: "ReadCommitted", timeout: 15_000 });
   }
 
   async begin(input: UsageStartInput): Promise<UsageStartResult> {
