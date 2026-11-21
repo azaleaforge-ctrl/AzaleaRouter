@@ -51,7 +51,7 @@ test("gateway preflight persists per-key RPM and rejects over-limit requests bef
     assert.equal(windows.length, 1);
     assert.equal(windows[0]!.requestCount, 2);
 
-    await database.apiKey.update({ where: { id: apiKey.id }, data: { status: "revoked" } });
+    await database.apiKey.update({ where: { id: apiKey.id }, data: { status: "revoked", revokedAt: new Date(now) } });
     await assert.rejects(
       usage.preflight({ userId: user.id, apiKeyId: apiKey.id }),
       /API_KEY_INVALID/,
