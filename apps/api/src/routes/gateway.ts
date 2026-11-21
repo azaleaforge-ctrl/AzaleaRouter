@@ -136,6 +136,14 @@ export function createGatewayRouter(options: GatewayRouterOptions): Router {
     }
 
     const input = chatCompletionSchema.parse(req.body);
+    try {
+      // Consume the persistent per-key RPM window before any catalog lookup.
+      // begin() rechecks concurrency and account/key state in its reservation transaction.
+      await options.usage.preflight({ apiKeyId: key.apiKeyId, userId: key.userId });
+    } catch (error) {
+      throw mapUsageStartError(error);
+    }
+
     const model = await options.database.catalogModel.findFirst({
       where: {
         source: "openrouter",
@@ -203,6 +211,7 @@ export function createGatewayRouter(options: GatewayRouterOptions): Router {
         providerSlug: endpoint.provider.slug,
         estimatedPromptTokens,
         maxCompletionTokens: maxTokens,
+        rateLimitPrechecked: true,
       });
     } catch (error) {
       throw mapUsageStartError(error);
