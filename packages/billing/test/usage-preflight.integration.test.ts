@@ -37,7 +37,7 @@ test("gateway preflight persists per-key RPM and rejects over-limit requests bef
         status: "active",
       },
     });
-    const now = Date.parse("2026-11-21T03:00:00.000Z");
+    const now = Date.now();
     const usage = new UsageService(database, new WalletService(database), { now: () => now });
 
     await usage.preflight({ userId: user.id, apiKeyId: apiKey.id });
