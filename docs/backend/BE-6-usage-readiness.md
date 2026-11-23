@@ -1,8 +1,8 @@
 # BE-6 — Usage, Realtime Events, and Model Colors
 
-**Status:** Implementation in progress; exact-head CI and downstream integration checks pending.  
+**Status:** Implementation in progress; the original BE-6 exact-head CI passed, and PR #28 adds route-level SSE replay/recovery regression tests.  
 **Depends on:** BE-1 PostgreSQL foundation, BE-3 catalog, BE-4 wallet settlement, BE-5 AZL key and gateway.  
-**Branch:** `feat/backend-usage-be6-final` (PR #9 not opened yet).  
+**Branch:** `feat/backend-usage-be6-final` (PR #9, open/Draft); SSE regression follow-up is stacked on the current backend chain in PR #28.  
 **Currency:** IDR for wallet settlement and customer-facing usage totals.
 
 ## Delivered in this increment
