@@ -1,6 +1,6 @@
 # BE-6 — Usage, Realtime Events, and Model Colors
 
-**Status:** Implementation in progress; the original BE-6 exact-head CI passed, and PR #28 adds route-level SSE replay/recovery regression tests.  
+**Status:** Implementation in progress; PR #28 adds route-level SSE replay/recovery regression tests, and exact-head workspace CI, CodeQL and Gitleaks passed on 24 November 2026.  
 **Depends on:** BE-1 PostgreSQL foundation, BE-3 catalog, BE-4 wallet settlement, BE-5 AZL key and gateway.  
 **Branch:** `feat/backend-usage-be6-final` (PR #9, open/Draft); SSE regression follow-up is stacked on the current backend chain in PR #28.  
 **Currency:** IDR for wallet settlement and customer-facing usage totals.
@@ -54,8 +54,18 @@ BE-6 is complete only after:
 
 ## Still open / not claimed complete
 
-- BE-6 code is implemented on the feature branch, but exact-head CI and the complete integration suite remain pending.
-- A load/reconnect test with real long-running SSE clients has not been executed.
-- End-to-end settlement against an approved provider has not been executed and is intentionally blocked by D-05.
+- Exact-head workspace CI, CodeQL and Gitleaks passed for PR #28 head `f221742b7cb1f329569613601a382d363774fba0` on 24 November 2026. Workspace CI completed frozen install, moderate/high/critical dependency audit, workspace lint, frontend typecheck/build/unit tests, database schema/migrations, catalog/billing/API/OpenAPI and worker checks. This does not complete the entire BE-6 acceptance suite.
+- A load/reconnect soak with real long-running SSE clients has not been executed.
+- Complete PostgreSQL settlement/outbox integration coverage and end-to-end settlement against an approved provider have not been executed; paid upstream E2E is intentionally blocked by D-05.
 - D-04/D-07/D-08/D-09 financial approval and D-06/D-10 file/data retention decisions remain open.
 - No production database, provider credentials, external payment merchant, paid upstream traffic or deployment is configured.
+
+
+## Latest exact-head verification — 24 November 2026
+
+- PR #28 current head: `f221742b7cb1f329569613601a382d363774fba0`.
+- Workspace CI: [run #45106601568](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45106601568) — passed frozen install, moderate/high/critical dependency audit, lint, typecheck, builds, frontend unit tests, PostgreSQL schema/migrations, database/catalog/billing/API/OpenAPI and worker checks.
+- CodeQL: [run #45106601565](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45106601565) — analysis and SARIF upload completed successfully; this is not a zero-findings or manual security sign-off.
+- Gitleaks: [run #45106601599](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45106601599) — full reachable-history scan passed.
+- Live ancestry comparison from PR #27 head `dde2ad466df882632a8eeacb14e9daa22703e49c` to PR #28 head is ahead 3 / behind 0.
+- The three added HTTP tests cover authenticated-user replay scoping, expired-cursor `snapshot.required` recovery, and malformed-cursor rejection before any outbox query. They do not replace long-running reconnect/load soak or full PostgreSQL settlement/outbox integration tests.
