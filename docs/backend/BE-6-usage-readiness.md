@@ -65,7 +65,7 @@ The first exact-head workspace CI [#45538960553](https://github.com/azaleaforge-
 
 Corrected code/test head `a87f48f8848cd3a36d2d18248364ac9537d8acdc` passed exact-head workspace CI [#45539316910](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45539316910), CodeQL workflow [#45539316908](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45539316908) and Gitleaks [#45539316909](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45539316909). Billing integration tests passed, including both new scenarios. CodeQL still reports eight backend `js/missing-rate-limiting` sinks and one frontend `js/identity-replacement` finding; these require manual triage.
 
-The later documentation-only PR #31 head `7c2a84968785e709543d14379f5596d8aebca25b` is being revalidated; the next documentation revision also requires exact-head CI. No stage completion is inferred from the earlier code/test pass.
+PR #31 current head `7c2a84968785e709543d14379f5596d8aebca25b` passed exact-head workspace CI [#45539612479](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45539612479), CodeQL workflow [#45539612570](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45539612570) and Gitleaks [#45539612484](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45539612484). CodeQL still reports eight backend `js/missing-rate-limiting` sinks and one frontend `js/identity-replacement` finding; manual triage remains open. PR #34's later BE-0 documentation-only head is being validated separately. No stage completion is inferred.
 
 ## Still open / not claimed complete
 
