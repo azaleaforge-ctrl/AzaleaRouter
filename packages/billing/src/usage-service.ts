@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { DatabaseClient } from "@azalea-router/database";
 import {
   calculateUsageCostIdr,
@@ -305,8 +306,24 @@ export class UsageService {
         throw new Error("REQUEST_ALREADY_PROCESSED");
       }
 
+      // Usage identity, pricing snapshots and wallet reservation references are
+      // immutable at the database layer. Allocate the usage ID and reserve first
+      // so the reservation can be attached on the initial usage-record insert.
+      const usageId = randomUUID();
+      let reservationId: string | null = null;
+      if (reservedChargeIdr !== "0") {
+        const reservation = await this.wallet.reserveInTransaction(tx, {
+          userId: input.userId,
+          amount: reservedChargeIdr,
+          idempotencyKey: `usage-reserve:${usageId}`,
+          expiresAt: leaseExpiresAt,
+        });
+        reservationId = reservation.reservationId;
+      }
+
       const usage = await tx.usageRecord.create({
         data: {
+          id: usageId,
           userId: input.userId,
           apiKeyId: input.apiKeyId,
           catalogModelId: input.catalogModelId,
@@ -329,23 +346,9 @@ export class UsageService {
           catalogPriceSnapshotId: pricing.priceId,
           fxRateSnapshotId: pricing.fxId,
           pricingPolicySnapshotId: pricing.policyId,
+          walletReservationId: reservationId,
         },
       });
-
-      let reservationId: string | null = null;
-      if (reservedChargeIdr !== "0") {
-        const reservation = await this.wallet.reserveInTransaction(tx, {
-          userId: input.userId,
-          amount: reservedChargeIdr,
-          idempotencyKey: `usage-reserve:${usage.id}`,
-          expiresAt: leaseExpiresAt,
-        });
-        reservationId = reservation.reservationId;
-        await tx.usageRecord.update({
-          where: { id: usage.id },
-          data: { walletReservationId: reservationId },
-        });
-      }
 
       await tx.apiKeyConcurrencyLease.create({
         data: {
