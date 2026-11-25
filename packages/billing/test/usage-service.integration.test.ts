@@ -11,6 +11,9 @@ type UsageFixture = {
   apiKeyId: string;
   catalogModelId: string;
   catalogEndpointId: string;
+  canonicalModelId: string;
+  sourceModelId: string;
+  providerSlug: string;
   usage: UsageService;
   wallet: WalletService;
 };
@@ -179,6 +182,9 @@ async function createUsageFixture(database: DatabaseClient): Promise<UsageFixtur
     apiKeyId: apiKey.id,
     catalogModelId: model.id,
     catalogEndpointId: endpoint.id,
+    canonicalModelId: model.canonicalSlug,
+    sourceModelId: model.sourceModelId,
+    providerSlug: provider.slug,
     usage: new UsageService(database, wallet, { now: () => nowMs }),
     wallet,
   };
@@ -194,10 +200,10 @@ async function beginUsage(
     requestId: `usage-request-${suffix}`,
     idempotencyKey: `usage-idempotency-${suffix}`,
     catalogModelId: fixture.catalogModelId,
-    canonicalModelId: `usage-integration-test/model-${suffix}`,
-    sourceModelId: `usage-integration-test/model-${suffix}`,
+    canonicalModelId: fixture.canonicalModelId,
+    sourceModelId: fixture.sourceModelId,
     catalogEndpointId: fixture.catalogEndpointId,
-    providerSlug: `provider-${suffix}`,
+    providerSlug: fixture.providerSlug,
     estimatedPromptTokens: 100,
     maxCompletionTokens: 100,
   });
