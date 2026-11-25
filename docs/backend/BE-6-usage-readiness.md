@@ -1,6 +1,6 @@
 # BE-6 — Usage, Realtime Events, and Model Colors
 
-**Status:** Implementation in progress; PR #31 adds PostgreSQL integration coverage for usage reservation, settlement, ledger posting, aggregates, outbox events and over-reservation reconciliation. Exact-head CI for PR #31 is pending.  
+**Status:** Implementation in progress; PR #31 adds PostgreSQL integration coverage and fixes a reservation-linking defect exposed by its first exact-head run. The first workspace CI run failed in the billing integration tests; the fix is on the current head and retest is pending.  
 **Depends on:** BE-1 PostgreSQL foundation, BE-3 catalog, BE-4 wallet settlement, BE-5 AZL key and gateway.  
 **Branch:** `feat/backend-usage-be6-final` (PR #9, open/Draft); SSE regression follow-up is stacked on the current backend chain in PR #28.  
 **Currency:** IDR for wallet settlement and customer-facing usage totals.
@@ -61,11 +61,13 @@ PR #31 adds `packages/billing/test/usage-service.integration.test.ts` with two D
 
 The success scenario also repeats finalization and asserts that the settled result does not create a second ledger transaction, aggregate increment or outbox event. These new tests are pending exact-head CI; they are not yet counted as passing evidence.
 
+The first exact-head workspace CI run [#45538960553](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45538960553) failed in the new tests because `UsageService.begin()` created a usage row and then attempted to update its `wallet_reservation_id`; the database trigger correctly rejects changes to immutable usage identity/pricing/reservation references. Commit `c1679e88c2bfc453e386bd3e4aa1213177f30b07` fixes the ordering: allocate the usage ID, create the reservation, then insert the usage row with its reservation reference already set. The corrected current head has new exact-head CI pending; the earlier failure is not counted as a passing test.
+
 ## Still open / not claimed complete
 
 - Exact-head workspace CI, CodeQL and Gitleaks passed for PR #28 head `f221742b7cb1f329569613601a382d363774fba0` on 24 November 2026. Workspace CI completed frozen install, moderate/high/critical dependency audit, workspace lint, frontend typecheck/build/unit tests, database schema/migrations, catalog/billing/API/OpenAPI and worker checks. This does not complete the entire BE-6 acceptance suite.
 - A load/reconnect soak with real long-running SSE clients has not been executed.
-- PR #31 adds targeted PostgreSQL usage settlement/outbox integration tests, but exact-head CI is pending and the wider acceptance matrix still needs zero-cost usage finalization, failure/release and stale-lease cleanup/retention integration coverage. End-to-end settlement against an approved provider remains blocked by D-05.
+- PR #31's first exact-head workspace CI run [#45538960553](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45538960553) failed in the new billing integration tests and exposed an immutable-reference update bug in `UsageService.begin()`. Commit `c1679e88c2bfc453e386bd3e4aa1213177f30b07` fixes the ordering by inserting the usage row with its reservation reference set initially; corrected-head CI is pending. The wider acceptance matrix still needs zero-cost usage finalization, failure/release and stale-lease cleanup/retention integration coverage. End-to-end settlement against an approved provider remains blocked by D-05.
 - D-04/D-07/D-08/D-09 financial approval and D-06/D-10 file/data retention decisions remain open.
 - No production database, provider credentials, external payment merchant, paid upstream traffic or deployment is configured.
 
