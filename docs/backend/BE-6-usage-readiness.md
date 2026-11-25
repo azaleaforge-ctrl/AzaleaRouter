@@ -1,6 +1,6 @@
 # BE-6 — Usage, Realtime Events, and Model Colors
 
-**Status:** Implementation in progress; PR #28 adds route-level SSE replay/recovery regression tests, and exact-head workspace CI, CodeQL and Gitleaks passed on 24 November 2026.  
+**Status:** Implementation in progress; PR #31 adds PostgreSQL integration coverage for usage reservation, settlement, ledger posting, aggregates, outbox events and over-reservation reconciliation. Exact-head CI for PR #31 is pending.  
 **Depends on:** BE-1 PostgreSQL foundation, BE-3 catalog, BE-4 wallet settlement, BE-5 AZL key and gateway.  
 **Branch:** `feat/backend-usage-be6-final` (PR #9, open/Draft); SSE regression follow-up is stacked on the current backend chain in PR #28.  
 **Currency:** IDR for wallet settlement and customer-facing usage totals.
@@ -52,11 +52,20 @@ BE-6 is complete only after:
 4. Worker tests exercise stale lease reconciliation and retention cleanup without deleting unexpired events or ledger/audit evidence.
 5. BE-5 gateway tests confirm no paid traffic occurs when upstream/legal/settlement gates are false, and unknown upstream outcomes do not automatically release a potentially chargeable hold.
 
+## Additional PostgreSQL integration coverage — 25 November 2026
+
+PR #31 adds `packages/billing/test/usage-service.integration.test.ts` with two DATABASE_URL-gated PostgreSQL integration scenarios:
+
+- Full `begin → finalize` settlement using persisted catalog-price, FX and pricing-policy snapshots, wallet reservation, a balanced one-time ledger posting, usage aggregate update and started/settled outbox events.
+- Actual customer charge above the reserved amount, verifying `pending_reconciliation`, no ledger debit, preserved wallet hold, released concurrency lease, safe notification event and no successful aggregate.
+
+The success scenario also repeats finalization and asserts that the settled result does not create a second ledger transaction, aggregate increment or outbox event. These new tests are pending exact-head CI; they are not yet counted as passing evidence.
+
 ## Still open / not claimed complete
 
 - Exact-head workspace CI, CodeQL and Gitleaks passed for PR #28 head `f221742b7cb1f329569613601a382d363774fba0` on 24 November 2026. Workspace CI completed frozen install, moderate/high/critical dependency audit, workspace lint, frontend typecheck/build/unit tests, database schema/migrations, catalog/billing/API/OpenAPI and worker checks. This does not complete the entire BE-6 acceptance suite.
 - A load/reconnect soak with real long-running SSE clients has not been executed.
-- Complete PostgreSQL settlement/outbox integration coverage and end-to-end settlement against an approved provider have not been executed; paid upstream E2E is intentionally blocked by D-05.
+- PR #31 adds targeted PostgreSQL usage settlement/outbox integration tests, but exact-head CI is pending and the wider acceptance matrix still needs zero-cost usage finalization, failure/release and stale-lease cleanup/retention integration coverage. End-to-end settlement against an approved provider remains blocked by D-05.
 - D-04/D-07/D-08/D-09 financial approval and D-06/D-10 file/data retention decisions remain open.
 - No production database, provider credentials, external payment merchant, paid upstream traffic or deployment is configured.
 
