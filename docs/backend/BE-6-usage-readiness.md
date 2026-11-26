@@ -1,6 +1,6 @@
 # BE-6 — Usage, Realtime Events, and Model Colors
 
-**Status:** Implementation in progress; PR #31 adds PostgreSQL integration coverage and fixes the reservation-linking defect exposed by its first exact-head run. The corrected code/test head passed workspace CI, CodeQL workflow and Gitleaks; CodeQL findings still require manual triage, and a later documentation-only refresh is being revalidated.
+**Status:** Implementation in progress; PR #31 adds PostgreSQL settlement coverage and fixes the immutable reservation-linking defect. PR #35 adds a zero-cost settlement integration scenario; its exact-head CI is pending. CodeQL findings still require manual triage, and SSE soak plus failure/stale-lease retention integration coverage remain open.
 **Depends on:** BE-1 PostgreSQL foundation, BE-3 catalog, BE-4 wallet settlement, BE-5 AZL key and gateway.  
 **Branch:** `feat/backend-usage-be6-final` (PR #9, open/Draft); SSE regression follow-up is stacked on the current backend chain in PR #28.  
 **Currency:** IDR for wallet settlement and customer-facing usage totals.
@@ -52,7 +52,7 @@ BE-6 is complete only after:
 4. Worker tests exercise stale lease reconciliation and retention cleanup without deleting unexpired events or ledger/audit evidence.
 5. BE-5 gateway tests confirm no paid traffic occurs when upstream/legal/settlement gates are false, and unknown upstream outcomes do not automatically release a potentially chargeable hold.
 
-## Additional PostgreSQL integration coverage — 25 November 2026
+## Additional PostgreSQL integration coverage — 25–26 November 2026
 
 PR #31 adds `packages/billing/test/usage-service.integration.test.ts` with two DATABASE_URL-gated PostgreSQL integration scenarios:
 
@@ -60,6 +60,8 @@ PR #31 adds `packages/billing/test/usage-service.integration.test.ts` with two D
 - Actual customer charge above the reserved amount, verifying `pending_reconciliation`, no ledger debit, preserved wallet hold, released concurrency lease, a safe notification event and no successful aggregate.
 
 The successful scenario repeats finalization and verifies that no second ledger transaction, aggregate increment or outbox event is created.
+
+PR #35 adds a third DATABASE_URL-gated PostgreSQL integration scenario for a zero-token/zero-cost completion. It verifies that the initial IDR reservation is marked settled at `0`, the full hold is released, no zero-value ledger transaction is posted, the wallet returns to its pre-request available balance, the successful usage aggregate and safe started/settled outbox events are recorded, and a repeated finalization creates no duplicate aggregate or event. The test is committed on branch `test/zero-cost-usage-settlement-be6` and is pending exact-head CI; it is not yet counted as passing evidence.
 
 The first exact-head workspace CI [#45538960553](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45538960553) exposed a production defect: `UsageService.begin()` inserted the usage record and then attempted to update its immutable `wallet_reservation_id`. Commit `c1679e88c2bfc453e386bd3e4aa1213177f30b07` fixes this by allocating the usage ID, creating the reservation first, and inserting the usage record with the reservation reference set initially.
 
