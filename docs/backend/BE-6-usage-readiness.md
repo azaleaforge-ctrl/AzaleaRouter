@@ -1,6 +1,6 @@
 # BE-6 — Usage, Realtime Events, and Model Colors
 
-**Status:** Implementation in progress; PR #31 adds PostgreSQL integration coverage and fixes the reservation-linking defect exposed by its first exact-head run. The corrected code/test head passed workspace CI, CodeQL workflow and Gitleaks; CodeQL findings still require manual triage, and a later documentation-only refresh is being revalidated.
+**Status:** Implementation in progress. PR #35 adds zero-cost settlement integration coverage and fixes a concurrency regression found on its prior exact head: PostgreSQL `P2034` serialization conflicts could escape `UsageService.finalize()` under concurrent serializable work. Finalization now reuses the bounded database-only retry helper (three attempts, P2034 only); unit tests prove P2034 retry, non-retry of P2002, and bounded exhaustion. Exact-head workspace CI [#45936425921](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45936425921), CodeQL [#45936425705](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45936425705) and Gitleaks [#45936425661](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45936425661) passed on `559993efcf6dd211336933ba6a7b7eef5281cf33`. The PostgreSQL zero-cost scenario and all three retry-policy unit tests passed. CodeQL findings still require manual triage; failure/release and stale-lease retention integration coverage plus SSE soak remain open.
 **Depends on:** BE-1 PostgreSQL foundation, BE-3 catalog, BE-4 wallet settlement, BE-5 AZL key and gateway.  
 **Branch:** `feat/backend-usage-be6-final` (PR #9, open/Draft); SSE regression follow-up is stacked on the current backend chain in PR #28.  
 **Currency:** IDR for wallet settlement and customer-facing usage totals.
@@ -52,7 +52,7 @@ BE-6 is complete only after:
 4. Worker tests exercise stale lease reconciliation and retention cleanup without deleting unexpired events or ledger/audit evidence.
 5. BE-5 gateway tests confirm no paid traffic occurs when upstream/legal/settlement gates are false, and unknown upstream outcomes do not automatically release a potentially chargeable hold.
 
-## Additional PostgreSQL integration coverage — 25 November 2026
+## Additional PostgreSQL integration coverage — 25–26 November 2026
 
 PR #31 adds `packages/billing/test/usage-service.integration.test.ts` with two DATABASE_URL-gated PostgreSQL integration scenarios:
 
@@ -60,6 +60,10 @@ PR #31 adds `packages/billing/test/usage-service.integration.test.ts` with two D
 - Actual customer charge above the reserved amount, verifying `pending_reconciliation`, no ledger debit, preserved wallet hold, released concurrency lease, a safe notification event and no successful aggregate.
 
 The successful scenario repeats finalization and verifies that no second ledger transaction, aggregate increment or outbox event is created.
+
+PR #35 adds a third DATABASE_URL-gated PostgreSQL integration scenario for a zero-token/zero-cost completion. It verifies that the initial IDR reservation is marked settled at `0`, the full hold is released, no zero-value ledger transaction is posted, the wallet returns to its pre-request available balance, the successful usage aggregate and safe started/settled outbox events are recorded, and a repeated finalization creates no duplicate aggregate or event. The test is committed on branch `test/zero-cost-usage-settlement-be6`; billing integration test output confirms 12 passed, 0 failed and 0 skipped, including the new zero-cost scenario. Exact-head workspace CI [#45749125237](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45749125237), CodeQL [#45749125348](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45749125348) and Gitleaks [#45749125262](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45749125262) passed on code/test head `2113bc37cbc768f730b7dc16851c137c1cf5adf4`. A subsequent status-documentation-only commit is now the PR head and requires its own exact-head workflow verification.
+
+A later exact-head workspace run [#45749729761](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45749729761) exposed a PostgreSQL `P2034` serialization conflict during `UsageService.finalize()` in the zero-cost integration scenario. PR #35 now wraps finalization in the existing bounded serializable retry policy. The callback contains database work only; retries are limited to Prisma `P2034`, while unique-constraint and other failures are not retried. `packages/billing/test/serializable-retry.test.ts` verifies retry success, non-retry of `P2002`, and the three-attempt ceiling. The exact follow-up head `559993efcf6dd211336933ba6a7b7eef5281cf33` passed workspace CI [#45936425921](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45936425921), CodeQL [#45936425705](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45936425705) and Gitleaks [#45936425661](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45936425661).
 
 The first exact-head workspace CI [#45538960553](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45538960553) exposed a production defect: `UsageService.begin()` inserted the usage record and then attempted to update its immutable `wallet_reservation_id`. Commit `c1679e88c2bfc453e386bd3e4aa1213177f30b07` fixes this by allocating the usage ID, creating the reservation first, and inserting the usage record with the reservation reference set initially.
 
@@ -71,7 +75,7 @@ PR #31 current head `7c2a84968785e709543d14379f5596d8aebca25b` passed exact-head
 
 - Exact-head workspace CI, CodeQL and Gitleaks passed for PR #28 head `f221742b7cb1f329569613601a382d363774fba0` on 24 November 2026. Workspace CI completed frozen install, moderate/high/critical dependency audit, workspace lint, frontend typecheck/build/unit tests, database schema/migrations, catalog/billing/API/OpenAPI and worker checks. This does not complete the entire BE-6 acceptance suite.
 - A load/reconnect soak with real long-running SSE clients has not been executed.
-- PR #31's initial CI exposed the immutable reservation-reference defect; the fix is described above. The corrected code/test head `a87f48f8848cd3a36d2d18248364ac9537d8acdc` passed exact-head workspace CI, CodeQL workflow and Gitleaks, and PR #31 current head `7c2a84968785e709543d14379f5596d8aebca25b` also passed all three exact-head checks. Eight backend CodeQL rate-limit sinks and one frontend identity-replacement finding remain for manual triage. PR #34's BE-0 documentation correction and this readiness update are under exact-head CI. Zero-cost finalization, failure/release, stale-lease cleanup/retention, long-running SSE reconnect/load soak and approved-provider E2E remain outstanding; provider E2E is blocked by D-05.
+- PR #31's initial CI exposed the immutable reservation-reference defect; the fix is described above. The corrected code/test head `a87f48f8848cd3a36d2d18248364ac9537d8acdc` passed exact-head workspace CI, CodeQL workflow and Gitleaks, and PR #31 current head `7c2a84968785e709543d14379f5596d8aebca25b` also passed all three exact-head checks. Eight backend CodeQL rate-limit sinks and one frontend identity-replacement finding remain for manual triage. PR #34's BE-0 documentation correction and this readiness update are under exact-head CI. Failure/release and stale-lease cleanup/retention integration coverage, long-running SSE reconnect/load soak and approved-provider E2E remain outstanding; provider E2E is blocked by D-05.
 - D-04/D-07/D-08/D-09 financial approval and D-06/D-10 file/data retention decisions remain open.
 - No production database, provider credentials, external payment merchant, paid upstream traffic or deployment is configured.
 
@@ -84,3 +88,12 @@ PR #31 current head `7c2a84968785e709543d14379f5596d8aebca25b` passed exact-head
 - Gitleaks: [run #45106601599](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45106601599) — full reachable-history scan passed.
 - Live ancestry comparison from PR #27 head `dde2ad466df882632a8eeacb14e9daa22703e49c` to PR #28 head is ahead 3 / behind 0.
 - The three added HTTP tests cover authenticated-user replay scoping, expired-cursor `snapshot.required` recovery, and malformed-cursor rejection before any outbox query. They do not replace long-running reconnect/load soak or full PostgreSQL settlement/outbox integration tests.
+
+
+## Latest exact-head verification — 27 November 2026
+
+- PR #35 code head: `559993efcf6dd211336933ba6a7b7eef5281cf33`; base PR #34 head `d39a4c279df39acffc222f59891b91aaa7e57b5b`; comparison is ahead 9 / behind 0.
+- Workspace CI [#45936425921](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45936425921) passed frozen install, moderate/high/critical dependency audit, workspace lint, frontend typecheck/build/unit tests, PostgreSQL schema validation and migrations, database/catalog/billing/API/OpenAPI/worker lint, typecheck, builds and tests. The zero-cost PostgreSQL integration scenario and three serializable-retry unit tests passed. API lint still emits six pre-existing unused-import warnings in `apps/api/src/app.ts` (zero errors).
+- CodeQL [#45936425705](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45936425705) completed successfully; this does not close the eight custom-rate-limit sinks or the separate frontend identity-replacement finding. Manual triage remains open.
+- Gitleaks [#45936425661](https://github.com/azaleaforge-ctrl/AzaleaRouter/actions/runs/45936425661) passed.
+- No provider E2E, live upstream call, payment, production deployment or customer charging was performed.

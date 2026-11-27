@@ -417,3 +417,113 @@ test("usage above its reservation is held for reconciliation without a ledger de
     await database.$disconnect();
   }
 });
+
+test("zero-cost usage settles its reservation and releases the full hold without a ledger entry", {
+  skip: !databaseUrl,
+}, async () => {
+  const database = createDatabaseClient(databaseUrl!);
+  await database.$connect();
+
+  try {
+    const suffix = randomUUID();
+    const fixture = await createUsageFixture(database);
+    const started = await beginUsage(fixture, suffix);
+
+    assert.equal(started.reservedChargeIdr, "5");
+    assert.ok(started.reservationId);
+
+    const finalized = await fixture.usage.finalize({
+      usageRecordId: started.usageRecordId,
+      providerRequestId: `provider-request-${suffix}`,
+      promptTokens: 0,
+      completionTokens: 0,
+      cachedTokens: 0,
+      reasoningTokens: 0,
+      latencyMs: 12,
+    });
+
+    assert.equal(finalized.status, "settled");
+    assert.equal(finalized.providerCostIdr, "0");
+    assert.equal(finalized.customerChargeIdr, "0");
+    assert.equal(finalized.reconciliationRequired, false);
+
+    const reservation = await database.walletReservation.findUniqueOrThrow({
+      where: { id: started.reservationId! },
+    });
+    assert.equal(reservation.status, "settled");
+    assert.equal(reservation.settledAmount?.toString(), "0");
+    assert.equal(reservation.ledgerTransactionId, null);
+
+    const settlementCount = await database.ledgerTransaction.count({
+      where: {
+        transactionType: "usage_settlement",
+        referenceType: "wallet_reservation",
+        referenceId: reservation.id,
+      },
+    });
+    assert.equal(settlementCount, 0);
+
+    const balance = await fixture.wallet.getBalance(fixture.userId);
+    assert.equal(balance.ledgerBalance, "1000");
+    assert.equal(balance.reservedBalance, "0");
+    assert.equal(balance.availableBalance, "1000");
+
+    const aggregate = await database.usageAggregate.findFirstOrThrow({
+      where: {
+        userId: fixture.userId,
+        catalogModelId: fixture.catalogModelId,
+        period: "day",
+      },
+    });
+    assert.equal(aggregate.requestCount, 1n);
+    assert.equal(aggregate.successfulRequestCount, 1n);
+    assert.equal(aggregate.promptTokens, 0n);
+    assert.equal(aggregate.completionTokens, 0n);
+    assert.equal(aggregate.totalTokens, 0n);
+    assert.equal(aggregate.customerChargeIdr.toString(), "0");
+
+    const events = await database.outboxEvent.findMany({
+      where: { aggregateId: started.usageRecordId },
+      orderBy: { occurredAt: "asc" },
+    });
+    assert.deepEqual(
+      events.map((event) => event.eventType).sort(),
+      ["usage.request.settled", "usage.request.started"].sort(),
+    );
+
+    const repeated = await fixture.usage.finalize({
+      usageRecordId: started.usageRecordId,
+      providerRequestId: `provider-request-${suffix}`,
+      promptTokens: 0,
+      completionTokens: 0,
+      cachedTokens: 0,
+      reasoningTokens: 0,
+      latencyMs: 12,
+    });
+    assert.equal(repeated.status, "settled");
+    assert.equal(repeated.customerChargeIdr, "0");
+
+    const repeatedSettlementCount = await database.ledgerTransaction.count({
+      where: {
+        transactionType: "usage_settlement",
+        referenceType: "wallet_reservation",
+        referenceId: reservation.id,
+      },
+    });
+    const repeatedEventCount = await database.outboxEvent.count({
+      where: { aggregateId: started.usageRecordId },
+    });
+    const repeatedAggregate = await database.usageAggregate.findFirstOrThrow({
+      where: {
+        userId: fixture.userId,
+        catalogModelId: fixture.catalogModelId,
+        period: "day",
+      },
+    });
+    assert.equal(repeatedSettlementCount, 0);
+    assert.equal(repeatedEventCount, 2);
+    assert.equal(repeatedAggregate.requestCount, 1n);
+  } finally {
+    await database.$disconnect();
+  }
+});

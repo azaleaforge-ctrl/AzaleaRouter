@@ -5,7 +5,7 @@ import {
   parseIdrAmount,
   type UsageCostResult,
 } from "./money.js";
-import { WalletService } from "./wallet-service.js";
+import { runSerializableWithRetry, WalletService } from "./wallet-service.js";
 
 const DEFAULT_REPLAY_SECONDS = 24 * 60 * 60;
 const CONCURRENCY_LEASE_SECONDS = 10 * 60;
@@ -488,7 +488,7 @@ export class UsageService {
       throw new RangeError("Latency must be a safe non-negative integer.");
     }
 
-    return this.database.$transaction(async (tx) => {
+    return runSerializableWithRetry(() => this.database.$transaction(async (tx) => {
       const usage = await tx.usageRecord.findUnique({
         where: { id: input.usageRecordId },
         include: {
@@ -706,7 +706,7 @@ export class UsageService {
         currency: "IDR",
         reconciliationRequired: false,
       };
-    }, { isolationLevel: "Serializable", timeout: 20_000 });
+    }, { isolationLevel: "Serializable", timeout: 20_000 }));
   }
 
   async fail(input: {

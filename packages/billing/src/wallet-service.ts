@@ -54,7 +54,7 @@ function isUniqueConstraintConflict(error: unknown): boolean {
  * database work only, so a rolled-back attempt can be safely executed again.
  * Idempotency constraints remain the final guard against duplicate writes.
  */
-async function runSerializableWithRetry<T>(operation: () => Promise<T>): Promise<T> {
+export async function runSerializableWithRetry<T>(operation: () => Promise<T>): Promise<T> {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       return await operation();
