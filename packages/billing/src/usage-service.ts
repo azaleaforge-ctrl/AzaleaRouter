@@ -244,7 +244,7 @@ export class UsageService {
     const rateWindowExpires = new Date(rateWindowStart.getTime() + USAGE_RATE_WINDOW_MS * 2);
     const leaseExpiresAt = new Date(now.getTime() + this.concurrencyLeaseSeconds * 1000);
 
-    return this.database.$transaction(async (tx) => {
+    return runSerializableWithRetry(() => this.database.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "api_keys" WHERE "id" = ${input.apiKeyId}::uuid AND "user_id" = ${input.userId}::uuid FOR UPDATE`;
       const apiKey = await tx.apiKey.findFirst({
         where: { id: input.apiKeyId, userId: input.userId, status: "active" },
@@ -406,7 +406,7 @@ export class UsageService {
         status: "started",
         startedAt: usage.startedAt,
       };
-    }, { isolationLevel: "Serializable", timeout: 15_000 });
+    }, { isolationLevel: "Serializable", timeout: 15_000 }));
   }
 
   async markStreaming(usageRecordId: string): Promise<void> {
@@ -436,7 +436,7 @@ export class UsageService {
     errorCode: string;
   }): Promise<void> {
     const now = new Date(this.now());
-    await this.database.$transaction(async (tx) => {
+    await runSerializableWithRetry(() => this.database.$transaction(async (tx) => {
       const usage = await tx.usageRecord.findUnique({ where: { id: input.usageRecordId } });
       if (!usage || ["settled", "released", "failed"].includes(usage.status)) return;
       if (usage.status !== "pending_reconciliation") {
@@ -476,7 +476,7 @@ export class UsageService {
           expiresAt: new Date(now.getTime() + this.replayWindowSeconds * 1000),
         },
       });
-    }, { isolationLevel: "Serializable", timeout: 15_000 });
+    }, { isolationLevel: "Serializable", timeout: 15_000 }));
   }
 
   async finalize(input: UsageFinalizationInput): Promise<UsageFinalizationResult> {
@@ -715,9 +715,9 @@ export class UsageService {
     cancelled?: boolean;
   }): Promise<void> {
     const now = new Date(this.now());
-    await this.database.$transaction(async (tx) => {
+    await runSerializableWithRetry(() => this.database.$transaction(async (tx) => {
       const usage = await tx.usageRecord.findUnique({ where: { id: input.usageRecordId } });
-      if (!usage || ["settled", "released"].includes(usage.status)) return;
+      if (!usage || ["settled", "released", "failed"].includes(usage.status)) return;
       if (usage.walletReservationId) {
         await this.wallet.releaseReservationInTransaction(tx, usage.userId, usage.walletReservationId);
       }
@@ -755,7 +755,7 @@ export class UsageService {
           expiresAt: new Date(now.getTime() + this.replayWindowSeconds * 1000),
         },
       });
-    }, { isolationLevel: "Serializable", timeout: 15_000 });
+    }, { isolationLevel: "Serializable", timeout: 15_000 }));
   }
 
   async getModelColors(userId: string) {
