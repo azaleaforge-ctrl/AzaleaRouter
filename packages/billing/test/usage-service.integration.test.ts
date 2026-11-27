@@ -527,3 +527,68 @@ test("zero-cost usage settles its reservation and releases the full hold without
     await database.$disconnect();
   }
 });
+
+
+test("failed usage releases its reservation and repeated failure is idempotent", {
+  skip: !databaseUrl,
+}, async () => {
+  const database = createDatabaseClient(databaseUrl!);
+  await database.$connect();
+
+  try {
+    const suffix = randomUUID();
+    const fixture = await createUsageFixture(database);
+    const started = await beginUsage(fixture, suffix);
+    assert.ok(started.reservationId);
+
+    await fixture.usage.fail({
+      usageRecordId: started.usageRecordId,
+      errorCode: "UPSTREAM_REQUEST_REJECTED",
+    });
+    await fixture.usage.fail({
+      usageRecordId: started.usageRecordId,
+      errorCode: "UPSTREAM_REQUEST_REJECTED",
+    });
+
+    const usage = await database.usageRecord.findUniqueOrThrow({
+      where: { id: started.usageRecordId },
+    });
+    assert.equal(usage.status, "failed");
+    assert.equal(usage.errorCode, "UPSTREAM_REQUEST_REJECTED");
+
+    const reservation = await database.walletReservation.findUniqueOrThrow({
+      where: { id: started.reservationId! },
+    });
+    assert.equal(reservation.status, "released");
+
+    const balance = await fixture.wallet.getBalance(fixture.userId);
+    assert.equal(balance.ledgerBalance, "1000");
+    assert.equal(balance.reservedBalance, "0");
+    assert.equal(balance.availableBalance, "1000");
+
+    const lease = await database.apiKeyConcurrencyLease.findUniqueOrThrow({
+      where: { usageRecordId: started.usageRecordId },
+    });
+    assert.ok(lease.releasedAt);
+
+    const events = await database.outboxEvent.findMany({
+      where: { aggregateId: started.usageRecordId },
+      orderBy: { occurredAt: "asc" },
+    });
+    assert.deepEqual(
+      events.map((event) => event.eventType).sort(),
+      ["usage.request.failed", "usage.request.started"].sort(),
+    );
+
+    const settlementCount = await database.ledgerTransaction.count({
+      where: {
+        transactionType: "usage_settlement",
+        referenceType: "wallet_reservation",
+        referenceId: reservation.id,
+      },
+    });
+    assert.equal(settlementCount, 0);
+  } finally {
+    await database.$disconnect();
+  }
+});
