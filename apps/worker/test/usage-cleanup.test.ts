@@ -3,9 +3,9 @@ import test from "node:test";
 import type { DatabaseClient } from "@azalea-router/database";
 import { createJobHandlers } from "../src/handlers/index.js";
 
-test("usage cleanup routes abandoned streaming requests to reconciliation and prunes only expired records", async () => {
+test("usage cleanup routes abandoned streaming requests to reconciliation and retains new lease releases", async () => {
   const now = new Date();
-  const usageTransitions: Array<{ id: string; status: string }> = [];
+  const usageTransitions: Array<{ id: string; status: string; reconciliationStatus: string }> = [];
   const eventWrites: Array<{ idempotencyKey: string; expiresAt: Date }> = [];
   const leaseUpdates: string[] = [];
   const cleanupCalls: string[] = [];
@@ -18,8 +18,8 @@ test("usage cleanup routes abandoned streaming requests to reconciliation and pr
         requestId: "req-1",
         status: "streaming",
       }),
-      update: async (args: { where: { id: string }; data: { status: string } }) => {
-        usageTransitions.push({ id: args.where.id, status: args.data.status });
+      update: async (args: { where: { id: string }; data: { status: string; reconciliationStatus: string } }) => {
+        usageTransitions.push({ id: args.where.id, status: args.data.status, reconciliationStatus: args.data.reconciliationStatus });
         return {};
       },
     },
@@ -44,15 +44,16 @@ test("usage cleanup routes abandoned streaming requests to reconciliation and pr
 
   const database = {
     apiKeyConcurrencyLease: {
-      findMany: async (args: { where: { releasedAt: null; expiresAt: { lte: Date } }; select: { id: boolean; usageRecordId: boolean }; take: number }) => {
+      findMany: async (args: { where: { releasedAt: null; expiresAt: { lte: Date } }; select: { id: boolean; usageRecordId: boolean }; orderBy: { expiresAt: "asc" }; take: number }) => {
         assert.equal(args.where.releasedAt, null);
         assert.ok(args.where.expiresAt.lte instanceof Date);
+        assert.deepEqual(args.orderBy, { expiresAt: "asc" });
         assert.equal(args.take, 500);
         return [{ id: "lease-1", usageRecordId: "usage-1" }];
       },
-      deleteMany: async (args: unknown) => {
+      deleteMany: async (args: { where: { releasedAt: { lte: Date } } }) => {
         cleanupCalls.push("leases");
-        assert.equal(typeof args, "object");
+        assert.ok(args.where.releasedAt.lte instanceof Date);
         return { count: 2 };
       },
     },
@@ -84,7 +85,7 @@ test("usage cleanup routes abandoned streaming requests to reconciliation and pr
   assert.ok(handler);
   const result = await handler({} as never);
 
-  assert.deepEqual(usageTransitions, [{ id: "usage-1", status: "pending_reconciliation" }]);
+  assert.deepEqual(usageTransitions, [{ id: "usage-1", status: "pending_reconciliation", reconciliationStatus: "pending" }]);
   assert.deepEqual(eventWrites.map((item) => item.idempotencyKey), ["usage.lease-expired:usage-1"]);
   assert.ok(eventWrites[0]!.expiresAt.getTime() > now.getTime());
   assert.deepEqual(leaseUpdates, ["lease-1"]);
