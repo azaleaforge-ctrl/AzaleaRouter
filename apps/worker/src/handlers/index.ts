@@ -69,6 +69,7 @@ export function createJobHandlers(
       const staleLeases = await database.apiKeyConcurrencyLease.findMany({
         where: { releasedAt: null, expiresAt: { lte: now } },
         select: { id: true, usageRecordId: true },
+        orderBy: { expiresAt: "asc" },
         take: 500,
       });
 
@@ -83,7 +84,7 @@ export function createJobHandlers(
               where: { id: usage.id },
               data: {
                 status: "pending_reconciliation",
-                reconciliationStatus: "required",
+                reconciliationStatus: "pending",
                 errorCode: "USAGE_LEASE_EXPIRED",
                 completedAt: now,
               },
@@ -122,13 +123,11 @@ export function createJobHandlers(
 
       const [expiredRateWindows, removedLeases, expiredExports, expiredOutbox] = await Promise.all([
         database.apiKeyRateWindow.deleteMany({ where: { expiresAt: { lte: now } } }),
+        // Expired active leases are processed in bounded batches above. Keep newly
+        // released leases for the replay/reconciliation retention window; deleting
+        // every expired lease here would discard rows beyond the 500-row batch.
         database.apiKeyConcurrencyLease.deleteMany({
-          where: {
-            OR: [
-              { expiresAt: { lte: now } },
-              { releasedAt: { lte: staleLeaseCutoff } },
-            ],
-          },
+          where: { releasedAt: { lte: staleLeaseCutoff } },
         }),
         database.usageExport.deleteMany({ where: { expiresAt: { lte: now } } }),
         database.outboxEvent.deleteMany({ where: { expiresAt: { lte: now } } }),
